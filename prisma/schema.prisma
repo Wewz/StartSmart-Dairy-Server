@@ -1,0 +1,579 @@
+// SmartStart Dairy™ - Complete Database Schema
+// PostgreSQL / Prisma ORM
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["fullTextSearch"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+// ============================================
+// ENUMS
+// ============================================
+
+enum UserRole {
+  STUDENT
+  INSTRUCTOR
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum Language {
+  ENGLISH
+  FILIPINO
+}
+
+enum Region {
+  LUZON
+  VISAYAS
+  MINDANAO
+}
+
+enum CourseStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum LessonStatus {
+  DRAFT
+  PUBLISHED
+}
+
+enum MaterialType {
+  PDF
+  IMAGE
+  VIDEO
+  AUDIO
+  OTHER
+}
+
+enum EnrollmentStatus {
+  ACTIVE
+  COMPLETED
+  DROPPED
+}
+
+enum QuizType {
+  PRE_TEST
+  POST_TEST
+  FORMATIVE
+}
+
+enum OutputType {
+  VISION_STATEMENT
+  DAIRY_VALUE_CHAIN
+  TRAINING_EVALUATION
+}
+
+enum OutputStatus {
+  PENDING
+  REVIEWED
+  RETURNED
+}
+
+enum OtpPurpose {
+  NEW_DEVICE_LOGIN
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+}
+
+enum LockReason {
+  NOT_STARTED
+  AWAITING_PRETEST
+  LESSONS_INCOMPLETE
+  QUIZ_FAILED
+  UNLOCKED
+}
+
+enum NotificationType {
+  ENROLLMENT_CONFIRMED
+  NEW_CONTENT
+  QUIZ_REMINDER
+  COURSE_COMPLETED
+  REPLY_IN_THREAD
+  OUTPUT_REVIEWED
+  NEW_DEVICE_LOGIN
+  MODULE_UNLOCKED
+}
+
+// ============================================
+// USER & AUTHENTICATION
+// ============================================
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  password      String? // Optional - only for email/password auth (null for Google OAuth)
+  role          UserRole  @default(STUDENT)
+  language      Language  @default(ENGLISH)
+  region        Region?
+  phoneNumber   String?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  accounts         Account[]
+  sessions         Session[]
+  deviceSessions   DeviceSession[]
+  otpChallenges    OtpChallenge[]
+  enrollments      Enrollment[]
+  lessonProgress   LessonProgress[]
+  moduleProgress   ModuleProgress[]
+  moduleLockStatus ModuleLockStatus[]
+  quizAttempts     QuizAttempt[]
+  threads          DiscussionThread[]
+  replies          DiscussionReply[]
+  outputs          StudentOutput[]
+  notifications    Notification[]
+  createdCourses   Course[]          @relation("CourseCreator")
+
+  @@map("users")
+}
+
+// NextAuth.js Account model
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+// NextAuth.js Session model
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+// NextAuth.js VerificationToken model
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// Device Session Management
+model DeviceSession {
+  id                String    @id @default(cuid())
+  userId            String
+  deviceFingerprint String // SHA256(userAgent + platform + acceptLanguage)
+  deviceLabel       String? // e.g., "iPhone 14, iOS 17"
+  ipAddress         String?
+  isActive          Boolean   @default(true)
+  lastSeenAt        DateTime  @default(now())
+  createdAt         DateTime  @default(now())
+  revokedAt         DateTime?
+  revokedReason     String? // "new_device_login" | "manual_logout" | "admin_revoke"
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isActive])
+  @@index([deviceFingerprint])
+  @@map("device_sessions")
+}
+
+// OTP Challenge for new device verification
+model OtpChallenge {
+  id                       String     @id @default(cuid())
+  userId                   String
+  email                    String
+  code                     String // 6-digit, bcrypt hashed
+  purpose                  OtpPurpose
+  pendingDeviceFingerprint String?
+  pendingDeviceLabel       String?
+  isUsed                   Boolean    @default(false)
+  attempts                 Int        @default(0) // max 5 attempts then invalidate
+  expiresAt                DateTime // 10 minutes from creation
+  createdAt                DateTime   @default(now())
+  user                     User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose, isUsed])
+  @@index([email, expiresAt])
+  @@map("otp_challenges")
+}
+
+// ============================================
+// ENROLLMENT & INVITE CODES
+// ============================================
+
+model InviteCode {
+  id          String          @id @default(cuid())
+  courseId    String
+  code        String          @unique // e.g., "DAIRY-X7K2"
+  createdById String
+  usageLimit  Int? // null = unlimited; 1 = single-use
+  usageCount  Int             @default(0)
+  expiresAt   DateTime?
+  isActive    Boolean         @default(true)
+  note        String? // admin label e.g., "Luzon batch Jan 2025"
+  createdAt   DateTime        @default(now())
+  course      Course          @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  uses        InviteCodeUse[]
+
+  @@index([code])
+  @@index([courseId, isActive])
+  @@map("invite_codes")
+}
+
+model InviteCodeUse {
+  id           String     @id @default(cuid())
+  inviteCodeId String
+  userId       String
+  usedAt       DateTime   @default(now())
+  inviteCode   InviteCode @relation(fields: [inviteCodeId], references: [id])
+
+  @@unique([inviteCodeId, userId])
+  @@map("invite_code_uses")
+}
+
+model Enrollment {
+  id           String           @id @default(cuid())
+  userId       String
+  courseId     String
+  status       EnrollmentStatus @default(ACTIVE)
+  enrolledVia  String? // "invite_code" | "admin" | "direct"
+  inviteCodeId String? // which code was used
+  enrolledAt   DateTime         @default(now())
+  completedAt  DateTime?
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course       Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, courseId])
+  @@index([userId])
+  @@index([courseId])
+  @@map("enrollments")
+}
+
+// ============================================
+// COURSE STRUCTURE
+// ============================================
+
+model Course {
+  id             String        @id @default(cuid())
+  slug           String        @unique
+  titleEn        String
+  titleFil       String
+  descriptionEn  String        @db.Text
+  descriptionFil String        @db.Text
+  thumbnailUrl   String?
+  status         CourseStatus  @default(DRAFT)
+  order          Int           @default(0)
+  isInviteOnly   Boolean       @default(true) // if true, requires invite code
+  createdById    String
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  createdBy      User          @relation("CourseCreator", fields: [createdById], references: [id])
+  modules        Module[]
+  enrollments    Enrollment[]
+  inviteCodes    InviteCode[]
+
+  @@index([slug])
+  @@index([status])
+  @@map("courses")
+}
+
+model Module {
+  id                   String             @id @default(cuid())
+  courseId             String
+  titleEn              String
+  titleFil             String
+  descriptionEn        String?            @db.Text
+  descriptionFil       String?            @db.Text
+  order                Int                @default(0)
+  // Progressive unlock configuration
+  requiresPreTest      Boolean            @default(false)
+  requiresAllLessons   Boolean            @default(true)
+  requiresPostTest     Boolean            @default(true)
+  passingScoreToUnlock Int                @default(70)
+  forumRequiresEnroll  Boolean            @default(true)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  course               Course             @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  lessons              Lesson[]
+  quizzes              Quiz[]
+  moduleProgress       ModuleProgress[]
+  lockStatus           ModuleLockStatus[]
+  threads              DiscussionThread[]
+
+  @@index([courseId, order])
+  @@map("modules")
+}
+
+model Lesson {
+  id               String           @id @default(cuid())
+  moduleId         String
+  titleEn          String
+  titleFil         String
+  bodyEn           String?          @db.Text
+  bodyFil          String?          @db.Text
+  youtubeId        String?
+  mp4Url           String? // DO Spaces URL for offline-capable video
+  durationSecs     Int?
+  order            Int              @default(0)
+  status           LessonStatus     @default(DRAFT)
+  requiresPrevious Boolean          @default(true)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  module           Module           @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  materials        CourseMaterial[]
+  lessonProgress   LessonProgress[]
+
+  @@index([moduleId, order])
+  @@map("lessons")
+}
+
+model CourseMaterial {
+  id         String       @id @default(cuid())
+  lessonId   String
+  nameEn     String
+  nameFil    String?
+  fileUrl    String
+  fileType   MaterialType
+  fileSizeKb Int?
+  order      Int          @default(0)
+  createdAt  DateTime     @default(now())
+  lesson     Lesson       @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@map("course_materials")
+}
+
+// ============================================
+// PROGRESS & LOCKING
+// ============================================
+
+model ModuleLockStatus {
+  id             String     @id @default(cuid())
+  userId         String
+  moduleId       String
+  isUnlocked     Boolean    @default(false)
+  lockReason     LockReason @default(NOT_STARTED)
+  pretestPassed  Boolean? // null = not yet attempted
+  allLessonsDone Boolean    @default(false)
+  posttestPassed Boolean? // null = not yet attempted
+  unlockedAt     DateTime?
+  updatedAt      DateTime   @updatedAt
+  user           User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  module         Module     @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, moduleId])
+  @@index([userId])
+  @@map("module_lock_status")
+}
+
+model LessonProgress {
+  id              String    @id @default(cuid())
+  userId          String
+  lessonId        String
+  watchedPercent  Int       @default(0)
+  isCompleted     Boolean   @default(false)
+  lastWatchedSecs Int       @default(0)
+  completedAt     DateTime?
+  updatedAt       DateTime  @updatedAt
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lesson          Lesson    @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, lessonId])
+  @@index([userId])
+  @@index([lessonId])
+  @@map("lesson_progress")
+}
+
+model ModuleProgress {
+  id               String    @id @default(cuid())
+  userId           String
+  moduleId         String
+  lessonsCompleted Int       @default(0)
+  totalLessons     Int       @default(0)
+  percentComplete  Int       @default(0)
+  isCompleted      Boolean   @default(false)
+  completedAt      DateTime?
+  updatedAt        DateTime  @updatedAt
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  module           Module    @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, moduleId])
+  @@map("module_progress")
+}
+
+// ============================================
+// QUIZZES & ASSESSMENTS
+// ============================================
+
+model Quiz {
+  id             String        @id @default(cuid())
+  moduleId       String
+  titleEn        String
+  titleFil       String
+  type           QuizType
+  passingScore   Int           @default(70)
+  maxAttempts    Int           @default(3)
+  timeLimitMin   Int?
+  isPublished    Boolean       @default(false)
+  version        Int           @default(1)
+  blocksProgress Boolean       @default(true)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  module         Module        @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  questions      Question[]
+  attempts       QuizAttempt[]
+
+  @@map("quizzes")
+}
+
+model Question {
+  id        String          @id @default(cuid())
+  quizId    String
+  textEn    String          @db.Text
+  textFil   String          @db.Text
+  order     Int             @default(0)
+  points    Int             @default(1)
+  createdAt DateTime        @default(now())
+  quiz      Quiz            @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  options   AnswerOption[]
+  answers   AttemptAnswer[]
+
+  @@map("questions")
+}
+
+model AnswerOption {
+  id         String          @id @default(cuid())
+  questionId String
+  textEn     String
+  textFil    String
+  isCorrect  Boolean         @default(false)
+  order      Int             @default(0)
+  question   Question        @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  answers    AttemptAnswer[]
+
+  @@map("answer_options")
+}
+
+model QuizAttempt {
+  id              String          @id @default(cuid())
+  userId          String
+  quizId          String
+  attemptNum      Int             @default(1)
+  score           Int?
+  maxScore        Int?
+  percentage      Int?
+  isPassed        Boolean?
+  triggeredUnlock Boolean         @default(false)
+  startedAt       DateTime        @default(now())
+  submittedAt     DateTime?
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quiz            Quiz            @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  answers         AttemptAnswer[]
+
+  @@index([userId, quizId])
+  @@map("quiz_attempts")
+}
+
+model AttemptAnswer {
+  id             String        @id @default(cuid())
+  attemptId      String
+  questionId     String
+  selectedOption String?
+  isCorrect      Boolean?
+  attempt        QuizAttempt   @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question       Question      @relation(fields: [questionId], references: [id])
+  option         AnswerOption? @relation(fields: [selectedOption], references: [id])
+
+  @@unique([attemptId, questionId])
+  @@map("attempt_answers")
+}
+
+// ============================================
+// COMMUNITY & OUTPUTS
+// ============================================
+
+model DiscussionThread {
+  id        String            @id @default(cuid())
+  moduleId  String
+  userId    String
+  titleEn   String
+  titleFil  String?
+  bodyEn    String            @db.Text
+  bodyFil   String?           @db.Text
+  isPinned  Boolean           @default(false)
+  isLocked  Boolean           @default(false)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  module    Module            @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  replies   DiscussionReply[]
+
+  @@index([moduleId, createdAt])
+  @@map("discussion_threads")
+}
+
+model DiscussionReply {
+  id        String           @id @default(cuid())
+  threadId  String
+  userId    String
+  body      String           @db.Text
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  thread    DiscussionThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("discussion_replies")
+}
+
+model StudentOutput {
+  id           String       @id @default(cuid())
+  userId       String
+  type         OutputType
+  title        String
+  content      String?      @db.Text
+  fileUrl      String?
+  status       OutputStatus @default(PENDING)
+  adminComment String?      @db.Text
+  submittedAt  DateTime     @default(now())
+  reviewedAt   DateTime?
+  reviewedById String?
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("student_outputs")
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  titleEn   String
+  titleFil  String
+  bodyEn    String
+  bodyFil   String
+  isRead    Boolean          @default(false)
+  link      String?
+  createdAt DateTime         @default(now())
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@map("notifications")
+}
