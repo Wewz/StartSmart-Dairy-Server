@@ -1,12 +1,117 @@
-import { prisma } from "../lib/prisma";
-import { hashPassword, comparePassword, signToken, hashOtp, compareOtp } from "../lib/auth";
-import { sendOtpEmail } from "../lib/mailer";
-import { generateOtp, generateDeviceFingerprint } from "../utils/helpers";
-import { RegisterDto, LoginDto, VerifyOtpDto } from "../types";
+import { prisma } from "@/lib/prisma";
+import {
+  hashPassword,
+  comparePassword,
+  signToken,
+  hashOtp,
+  compareOtp,
+} from "@/lib/auth";
+import { sendOtpEmail } from "@/lib/mailer";
+import { generateOtp, generateDeviceFingerprint } from "@/utils/helpers";
+import { RegisterDto, LoginDto, VerifyOtpDto, GoogleAuthDto } from "@/types";
+import { Language, Region } from "@prisma/client";
+import { UpdateProfileDto } from "@/types";
+import { OAuth2Client } from "google-auth-library";
+
+const validLanguages = Object.values(Language);
+const validRegions = Object.values(Region);
+
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 export class AuthService {
+  async googleAuth(dto: GoogleAuthDto) {
+    if (!process.env.GOOGLE_CLIENT_ID) {
+      throw new Error("Google OAuth is not configured on this server");
+    }
+
+    // Verify the Google ID token
+    const ticket = await googleClient.verifyIdToken({
+      idToken: dto.idToken,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+
+    const payload = ticket.getPayload();
+    if (!payload || !payload.email) {
+      throw new Error("Invalid Google token");
+    }
+
+    const { email, name, picture, sub: googleId } = payload;
+
+    // Find or create the user
+    let user = await prisma.user.findUnique({ where: { email } });
+
+    if (!user) {
+      user = await prisma.user.create({
+        data: {
+          email,
+          name: name ?? null,
+          image: picture ?? null,
+          emailVerified: new Date(), // Google emails are pre-verified
+          accounts: {
+            create: {
+              type: "oauth",
+              provider: "google",
+              providerAccountId: googleId,
+            },
+          },
+        },
+      });
+    } else {
+      // Update profile picture if changed
+      if (picture && user.image !== picture) {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { image: picture },
+        });
+        user = { ...user, image: picture };
+      }
+
+      // Ensure Google account link exists
+      const accountExists = await prisma.account.findUnique({
+        where: {
+          provider_providerAccountId: {
+            provider: "google",
+            providerAccountId: googleId,
+          },
+        },
+      });
+      if (!accountExists) {
+        await prisma.account.create({
+          data: {
+            userId: user.id,
+            type: "oauth",
+            provider: "google",
+            providerAccountId: googleId,
+          },
+        });
+      }
+    }
+
+    if (!user.isActive) throw new Error("Account is deactivated");
+
+    const token = signToken({
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+    });
+
+    return {
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        language: user.language,
+        image: user.image,
+      },
+    };
+  }
+
   async register(dto: RegisterDto) {
-    const existing = await prisma.user.findUnique({ where: { email: dto.email } });
+    const existing = await prisma.user.findUnique({
+      where: { email: dto.email },
+    });
     if (existing) throw new Error("Email already registered");
 
     const hashed = await hashPassword(dto.password);
@@ -83,11 +188,21 @@ export class AuthService {
       data: { lastSeenAt: new Date(), ipAddress },
     });
 
-    const token = signToken({ userId: user.id, email: user.email, role: user.role });
+    const token = signToken({
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+    });
     return {
       requiresOtp: false,
       token,
-      user: { id: user.id, name: user.name, email: user.email, role: user.role, language: user.language },
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        language: user.language,
+      },
     };
   }
 
@@ -104,26 +219,43 @@ export class AuthService {
 
     if (!challenge) throw new Error("OTP not found or expired");
     if (challenge.attempts >= 5) {
-      await prisma.otpChallenge.update({ where: { id: challenge.id }, data: { isUsed: true } });
+      await prisma.otpChallenge.update({
+        where: { id: challenge.id },
+        data: { isUsed: true },
+      });
       throw new Error("Too many attempts. Please request a new OTP.");
     }
 
     const valid = await compareOtp(dto.code, challenge.code);
     if (!valid) {
-      await prisma.otpChallenge.update({ where: { id: challenge.id }, data: { attempts: { increment: 1 } } });
+      await prisma.otpChallenge.update({
+        where: { id: challenge.id },
+        data: { attempts: { increment: 1 } },
+      });
       throw new Error("Invalid OTP code");
     }
 
-    await prisma.otpChallenge.update({ where: { id: challenge.id }, data: { isUsed: true } });
+    await prisma.otpChallenge.update({
+      where: { id: challenge.id },
+      data: { isUsed: true },
+    });
 
-    const user = await prisma.user.findUnique({ where: { id: challenge.userId } });
+    const user = await prisma.user.findUnique({
+      where: { id: challenge.userId },
+    });
     if (!user) throw new Error("User not found");
 
     if (dto.purpose === "EMAIL_VERIFICATION") {
-      await prisma.user.update({ where: { id: user.id }, data: { emailVerified: new Date() } });
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { emailVerified: new Date() },
+      });
     }
 
-    if (dto.purpose === "NEW_DEVICE_LOGIN" && challenge.pendingDeviceFingerprint) {
+    if (
+      dto.purpose === "NEW_DEVICE_LOGIN" &&
+      challenge.pendingDeviceFingerprint
+    ) {
       await prisma.deviceSession.create({
         data: {
           userId: user.id,
@@ -135,10 +267,20 @@ export class AuthService {
       });
     }
 
-    const token = signToken({ userId: user.id, email: user.email, role: user.role });
+    const token = signToken({
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+    });
     return {
       token,
-      user: { id: user.id, name: user.name, email: user.email, role: user.role, language: user.language },
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        language: user.language,
+      },
     };
   }
 
@@ -162,7 +304,12 @@ export class AuthService {
 
   async resetPassword(email: string, code: string, newPassword: string) {
     const challenge = await prisma.otpChallenge.findFirst({
-      where: { email, purpose: "PASSWORD_RESET", isUsed: false, expiresAt: { gt: new Date() } },
+      where: {
+        email,
+        purpose: "PASSWORD_RESET",
+        isUsed: false,
+        expiresAt: { gt: new Date() },
+      },
       orderBy: { createdAt: "desc" },
     });
     if (!challenge) throw new Error("Invalid or expired reset code");
@@ -172,8 +319,14 @@ export class AuthService {
 
     const hashed = await hashPassword(newPassword);
     await Promise.all([
-      prisma.user.update({ where: { id: challenge.userId }, data: { password: hashed } }),
-      prisma.otpChallenge.update({ where: { id: challenge.id }, data: { isUsed: true } }),
+      prisma.user.update({
+        where: { id: challenge.userId },
+        data: { password: hashed },
+      }),
+      prisma.otpChallenge.update({
+        where: { id: challenge.id },
+        data: { isUsed: true },
+      }),
     ]);
   }
 
@@ -181,18 +334,34 @@ export class AuthService {
     return prisma.user.findUnique({
       where: { id: userId },
       select: {
-        id: true, name: true, email: true, role: true,
-        language: true, region: true, phoneNumber: true,
-        image: true, emailVerified: true, createdAt: true,
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        language: true,
+        region: true,
+        phoneNumber: true,
+        image: true,
+        emailVerified: true,
+        createdAt: true,
       },
     });
   }
 
-  async updateProfile(userId: string, data: { name?: string; language?: string; region?: string; phoneNumber?: string; image?: string }) {
+  async updateProfile(userId: string, data: UpdateProfileDto) {
     return prisma.user.update({
       where: { id: userId },
       data,
-      select: { id: true, name: true, email: true, role: true, language: true, region: true, phoneNumber: true, image: true },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        language: true,
+        region: true,
+        phoneNumber: true,
+        image: true,
+      },
     });
   }
 }

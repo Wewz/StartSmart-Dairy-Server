@@ -1,6 +1,13 @@
-import { prisma } from "../lib/prisma";
-import { slugify, generateInviteCode } from "../utils/helpers";
-import { CreateCourseDto, CreateModuleDto, CreateLessonDto } from "../types";
+import { prisma } from "@/lib/prisma";
+import { slugify, generateInviteCode } from "@/utils/helpers";
+import {
+  CreateCourseDto,
+  CreateModuleDto,
+  CreateLessonDto,
+  UpdateCourseDto,
+  AdminEnrollDto,
+} from "@/types";
+import { CourseStatus, LessonStatus, Prisma } from "@prisma/client";
 
 export class CourseService {
   async listCourses(userId: string, role: string) {
@@ -11,7 +18,7 @@ export class CourseService {
       });
     }
 
-    // Students/Instructors see enrolled or published non-invite-only
+    // Students see enrolled or published non-invite-only
     return prisma.course.findMany({
       where: {
         OR: [
@@ -22,7 +29,10 @@ export class CourseService {
       orderBy: { order: "asc" },
       include: {
         _count: { select: { modules: true } },
-        enrollments: { where: { userId }, select: { status: true, enrolledAt: true } },
+        enrollments: {
+          where: { userId },
+          select: { status: true, enrolledAt: true },
+        },
       },
     });
   }
@@ -34,8 +44,26 @@ export class CourseService {
         modules: {
           orderBy: { order: "asc" },
           include: {
-            lessons: { orderBy: { order: "asc" }, select: { id: true, titleEn: true, titleFil: true, order: true, status: true, durationSecs: true } },
-            quizzes: { select: { id: true, titleEn: true, type: true, isPublished: true } },
+            lessons: {
+              orderBy: { order: "asc" },
+              select: {
+                id: true,
+                titleEn: true,
+                titleFil: true,
+                order: true,
+                status: true,
+                durationSecs: true,
+              },
+            },
+            quizzes: {
+              select: {
+                id: true,
+                titleEn: true,
+                titleFil: true,
+                type: true,
+                isPublished: true,
+              },
+            },
             lockStatus: { where: { userId } },
             moduleProgress: { where: { userId } },
           },
@@ -59,7 +87,7 @@ export class CourseService {
     });
   }
 
-  async updateCourse(id: string, data: Partial<CreateCourseDto> & { status?: string }) {
+  async updateCourse(id: string, data: UpdateCourseDto) {
     return prisma.course.update({ where: { id }, data });
   }
 
@@ -68,6 +96,79 @@ export class CourseService {
   }
 
   // Modules
+  async listModules(courseId: string, userId: string, role: string) {
+    const modules = await prisma.module.findMany({
+      where: { courseId },
+      orderBy: { order: "asc" },
+      include: {
+        lessons: {
+          where: role === "ADMIN" || role === "SUPER_ADMIN" ? {} : { status: "PUBLISHED" },
+          orderBy: { order: "asc" },
+          select: {
+            id: true,
+            titleEn: true,
+            titleFil: true,
+            order: true,
+            status: true,
+            durationSecs: true,
+            requiresPrevious: true,
+          },
+        },
+        quizzes: {
+          select: {
+            id: true,
+            titleEn: true,
+            titleFil: true,
+            type: true,
+            isPublished: true,
+          },
+        },
+        lockStatus: { where: { userId } },
+        moduleProgress: { where: { userId } },
+        _count: { select: { lessons: true } },
+      },
+    });
+    return modules;
+  }
+
+  async getModule(id: string, userId: string, role: string) {
+    const module = await prisma.module.findUnique({
+      where: { id },
+      include: {
+        lessons: {
+          where: role === "ADMIN" || role === "SUPER_ADMIN" ? {} : { status: "PUBLISHED" },
+          orderBy: { order: "asc" },
+          select: {
+            id: true,
+            titleEn: true,
+            titleFil: true,
+            order: true,
+            status: true,
+            durationSecs: true,
+            requiresPrevious: true,
+          },
+        },
+        quizzes: {
+          select: {
+            id: true,
+            titleEn: true,
+            titleFil: true,
+            type: true,
+            isPublished: true,
+            passingScore: true,
+            maxAttempts: true,
+            timeLimitMin: true,
+          },
+        },
+        lockStatus: { where: { userId } },
+        moduleProgress: { where: { userId } },
+        course: { select: { id: true, slug: true, titleEn: true, titleFil: true } },
+      },
+    });
+    if (!module) throw new Error("Module not found");
+    return module;
+  }
+
   async createModule(dto: CreateModuleDto) {
     return prisma.module.create({ data: dto });
   }
@@ -93,8 +194,11 @@ export class CourseService {
         lessonProgress: { where: { userId } },
         module: {
           select: {
-            id: true, titleEn: true, titleFil: true, courseId: true,
-            requiresPrevious: false,
+            id: true,
+            titleEn: true,
+            titleFil: true,
+            courseId: true,
+            course: { select: { slug: true } },
           },
         },
       },
@@ -103,7 +207,7 @@ export class CourseService {
     return lesson;
   }
 
-  async updateLesson(id: string, data: Partial<CreateLessonDto> & { status?: string }) {
+  async updateLesson(id: string, data: Prisma.LessonUpdateInput) {
     return prisma.lesson.update({ where: { id }, data });
   }
 
@@ -112,11 +216,15 @@ export class CourseService {
   }
 
   // Invite Codes
-  async createInviteCode(courseId: string, createdById: string, opts: {
-    usageLimit?: number;
-    expiresAt?: Date;
-    note?: string;
-  }) {
+  async createInviteCode(
+    courseId: string,
+    createdById: string,
+    opts: {
+      usageLimit?: number;
+      expiresAt?: Date;
+      note?: string;
+    },
+  ) {
     let code = generateInviteCode();
     // Ensure uniqueness
     while (await prisma.inviteCode.findUnique({ where: { code } })) {
@@ -140,8 +248,10 @@ export class CourseService {
       where: { code, isActive: true },
     });
     if (!invite) throw new Error("Invalid or inactive invite code");
-    if (invite.expiresAt && invite.expiresAt < new Date()) throw new Error("Invite code expired");
-    if (invite.usageLimit && invite.usageCount >= invite.usageLimit) throw new Error("Invite code limit reached");
+    if (invite.expiresAt && invite.expiresAt < new Date())
+      throw new Error("Invite code expired");
+    if (invite.usageLimit && invite.usageCount >= invite.usageLimit)
+      throw new Error("Invite code limit reached");
 
     const existing = await prisma.enrollment.findUnique({
       where: { userId_courseId: { userId, courseId: invite.courseId } },
@@ -150,7 +260,12 @@ export class CourseService {
 
     const [enrollment] = await prisma.$transaction([
       prisma.enrollment.create({
-        data: { userId, courseId: invite.courseId, enrolledVia: "invite_code", inviteCodeId: invite.id },
+        data: {
+          userId,
+          courseId: invite.courseId,
+          enrolledVia: "invite_code",
+          inviteCodeId: invite.id,
+        },
       }),
       prisma.inviteCode.update({
         where: { id: invite.id },
@@ -161,23 +276,7 @@ export class CourseService {
       }),
     ]);
 
-    // Initialize module lock status for first module
-    const firstModule = await prisma.module.findFirst({
-      where: { courseId: invite.courseId },
-      orderBy: { order: "asc" },
-    });
-    if (firstModule) {
-      await prisma.moduleLockStatus.upsert({
-        where: { userId_moduleId: { userId, moduleId: firstModule.id } },
-        update: {},
-        create: {
-          userId,
-          moduleId: firstModule.id,
-          isUnlocked: !firstModule.requiresPreTest,
-          lockReason: firstModule.requiresPreTest ? "AWAITING_PRETEST" : "UNLOCKED",
-        },
-      });
-    }
+    await this.initializeFirstModuleLock(userId, invite.courseId);
 
     // Create enrollment notification
     await prisma.notification.create({
@@ -193,6 +292,63 @@ export class CourseService {
     });
 
     return enrollment;
+  }
+
+  async adminEnrollUser(dto: AdminEnrollDto, adminId: string) {
+    const { userId, courseId } = dto;
+
+    const [user, course] = await Promise.all([
+      prisma.user.findUnique({ where: { id: userId } }),
+      prisma.course.findUnique({ where: { id: courseId } }),
+    ]);
+    if (!user) throw new Error("User not found");
+    if (!course) throw new Error("Course not found");
+
+    const existing = await prisma.enrollment.findUnique({
+      where: { userId_courseId: { userId, courseId } },
+    });
+    if (existing) throw new Error("User is already enrolled");
+
+    const enrollment = await prisma.enrollment.create({
+      data: { userId, courseId, enrolledVia: "admin" },
+    });
+
+    await this.initializeFirstModuleLock(userId, courseId);
+
+    await prisma.notification.create({
+      data: {
+        userId,
+        type: "ENROLLMENT_CONFIRMED",
+        titleEn: "Enrollment Confirmed",
+        titleFil: "Nakumpirma ang Pagpapatala",
+        bodyEn: `You have been enrolled in "${course.titleEn}".`,
+        bodyFil: `Naitalaga ka sa "${course.titleFil}".`,
+        link: `/courses/${course.slug}`,
+      },
+    });
+
+    return enrollment;
+  }
+
+  private async initializeFirstModuleLock(userId: string, courseId: string) {
+    const firstModule = await prisma.module.findFirst({
+      where: { courseId },
+      orderBy: { order: "asc" },
+    });
+    if (!firstModule) return;
+
+    await prisma.moduleLockStatus.upsert({
+      where: { userId_moduleId: { userId, moduleId: firstModule.id } },
+      update: {},
+      create: {
+        userId,
+        moduleId: firstModule.id,
+        isUnlocked: !firstModule.requiresPreTest,
+        lockReason: firstModule.requiresPreTest
+          ? "AWAITING_PRETEST"
+          : "UNLOCKED",
+      },
+    });
   }
 }
 

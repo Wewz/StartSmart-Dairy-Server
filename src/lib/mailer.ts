@@ -13,7 +13,7 @@ const transporter = nodemailer.createTransport({
 export const sendOtpEmail = async (
   to: string,
   code: string,
-  purpose: "NEW_DEVICE_LOGIN" | "EMAIL_VERIFICATION" | "PASSWORD_RESET"
+  purpose: "NEW_DEVICE_LOGIN" | "EMAIL_VERIFICATION" | "PASSWORD_RESET",
 ) => {
   const subjects: Record<string, string> = {
     NEW_DEVICE_LOGIN: "New Device Login – Verification Code",
@@ -44,7 +44,7 @@ export const sendOtpEmail = async (
 export const sendNotificationEmail = async (
   to: string,
   title: string,
-  body: string
+  body: string,
 ) => {
   await transporter.sendMail({
     from: `"SmartStart Dairy" <${process.env.SMTP_USER}>`,

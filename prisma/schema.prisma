@@ -8,6 +8,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 // ============================================
 // ENUMS
@@ -131,8 +132,10 @@ model User {
   threads          DiscussionThread[]
   replies          DiscussionReply[]
   outputs          StudentOutput[]
+  reviewedOutputs  StudentOutput[]    @relation("OutputReviewer")
   notifications    Notification[]
-  createdCourses   Course[]          @relation("CourseCreator")
+  createdCourses   Course[]           @relation("CourseCreator")
+  inviteCodeUses   InviteCodeUse[]
 
   @@map("users")
 }
@@ -234,6 +237,7 @@ model InviteCode {
   createdAt   DateTime        @default(now())
   course      Course          @relation(fields: [courseId], references: [id], onDelete: Cascade)
   uses        InviteCodeUse[]
+  enrollments Enrollment[]
 
   @@index([code])
   @@index([courseId, isActive])
@@ -246,6 +250,7 @@ model InviteCodeUse {
   userId       String
   usedAt       DateTime   @default(now())
   inviteCode   InviteCode @relation(fields: [inviteCodeId], references: [id])
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([inviteCodeId, userId])
   @@map("invite_code_uses")
@@ -262,6 +267,7 @@ model Enrollment {
   completedAt  DateTime?
   user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   course       Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  inviteCode   InviteCode?      @relation(fields: [inviteCodeId], references: [id])
 
   @@unique([userId, courseId])
   @@index([userId])
@@ -274,23 +280,24 @@ model Enrollment {
 // ============================================
 
 model Course {
-  id             String        @id @default(cuid())
-  slug           String        @unique
+  id             String          @id @default(cuid())
+  slug           String          @unique
   titleEn        String
   titleFil       String
-  descriptionEn  String        @db.Text
-  descriptionFil String        @db.Text
+  descriptionEn  String          @db.Text
+  descriptionFil String          @db.Text
   thumbnailUrl   String?
-  status         CourseStatus  @default(DRAFT)
-  order          Int           @default(0)
-  isInviteOnly   Boolean       @default(true) // if true, requires invite code
+  status         CourseStatus    @default(DRAFT)
+  order          Int             @default(0)
+  isInviteOnly   Boolean         @default(true) // if true, requires invite code
   createdById    String
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-  createdBy      User          @relation("CourseCreator", fields: [createdById], references: [id])
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  createdBy      User            @relation("CourseCreator", fields: [createdById], references: [id])
   modules        Module[]
   enrollments    Enrollment[]
   inviteCodes    InviteCode[]
+  outputs        StudentOutput[]
 
   @@index([slug])
   @@index([status])
@@ -319,6 +326,7 @@ model Module {
   moduleProgress       ModuleProgress[]
   lockStatus           ModuleLockStatus[]
   threads              DiscussionThread[]
+  outputs              StudentOutput[]
 
   @@index([courseId, order])
   @@map("modules")
@@ -547,6 +555,8 @@ model DiscussionReply {
 model StudentOutput {
   id           String       @id @default(cuid())
   userId       String
+  courseId     String?
+  moduleId     String?
   type         OutputType
   title        String
   content      String?      @db.Text
@@ -557,6 +567,9 @@ model StudentOutput {
   reviewedAt   DateTime?
   reviewedById String?
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course       Course?      @relation(fields: [courseId], references: [id])
+  module       Module?      @relation(fields: [moduleId], references: [id])
+  reviewedBy   User?        @relation("OutputReviewer", fields: [reviewedById], references: [id])
 
   @@map("student_outputs")
 }

@@ -1,10 +1,14 @@
 // output.controller.ts
 import { Response } from "express";
-import { outputService } from "../services/output.service";
-import { AuthenticatedRequest } from "../types";
-import { ok, created, badRequest, serverError } from "../utils/reponse";
+import { outputService } from "@/services/output.service";
+import { AuthenticatedRequest } from "@/types";
+import { ok, created, badRequest, serverError } from "@/utils/reponse";
+import { param } from "@/utils/helpers";
 
-export const submitOutput = async (req: AuthenticatedRequest, res: Response) => {
+export const submitOutput = async (
+  req: AuthenticatedRequest,
+  res: Response,
+) => {
   try {
     const output = await outputService.submitOutput(req.user!.userId, req.body);
     return created(res, output, "Output submitted");
@@ -13,7 +17,10 @@ export const submitOutput = async (req: AuthenticatedRequest, res: Response) => 
   }
 };
 
-export const getMyOutputs = async (req: AuthenticatedRequest, res: Response) => {
+export const getMyOutputs = async (
+  req: AuthenticatedRequest,
+  res: Response,
+) => {
   try {
     const outputs = await outputService.getMyOutputs(req.user!.userId);
     return ok(res, outputs);
@@ -22,7 +29,10 @@ export const getMyOutputs = async (req: AuthenticatedRequest, res: Response) => 
   }
 };
 
-export const getAllOutputs = async (req: AuthenticatedRequest, res: Response) => {
+export const getAllOutputs = async (
+  req: AuthenticatedRequest,
+  res: Response,
+) => {
   try {
     const page = Number(req.query.page) || 1;
     const limit = Number(req.query.limit) || 20;
@@ -34,9 +44,16 @@ export const getAllOutputs = async (req: AuthenticatedRequest, res: Response) =>
   }
 };
 
-export const reviewOutput = async (req: AuthenticatedRequest, res: Response) => {
+export const reviewOutput = async (
+  req: AuthenticatedRequest,
+  res: Response,
+) => {
   try {
-    const output = await outputService.reviewOutput(req.params.id, req.user!.userId, req.body);
+    const output = await outputService.reviewOutput(
+      param(req.params.id),
+      req.user!.userId,
+      req.body,
+    );
     return ok(res, output);
   } catch (err: any) {
     return badRequest(res, err.message);

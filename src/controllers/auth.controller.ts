@@ -1,12 +1,27 @@
 import { Request, Response } from "express";
-import { authService } from "../services/auth.service";
-import { AuthenticatedRequest } from "../types";
-import { ok, created, badRequest, serverError } from "../utils/reponse";
+import { authService } from "@/services/auth.service";
+import { AuthenticatedRequest } from "@/types";
+import { ok, created, badRequest, serverError } from "@/utils/reponse";
+import { Language, Region } from "@prisma/client";
+import { UpdateProfileDto } from "@/types";
+
+export const googleAuth = async (req: Request, res: Response) => {
+  try {
+    const result = await authService.googleAuth({ idToken: req.body.idToken });
+    return ok(res, result, "Authenticated successfully");
+  } catch (err: any) {
+    return badRequest(res, err.message);
+  }
+};
 
 export const register = async (req: Request, res: Response) => {
   try {
     const user = await authService.register(req.body);
-    return created(res, user, "Registration successful. Please verify your email.");
+    return created(
+      res,
+      user,
+      "Registration successful. Please verify your email.",
+    );
   } catch (err: any) {
     return badRequest(res, err.message);
   }
@@ -60,9 +75,22 @@ export const getMe = async (req: AuthenticatedRequest, res: Response) => {
   }
 };
 
-export const updateProfile = async (req: AuthenticatedRequest, res: Response) => {
+export const updateProfile = async (
+  req: AuthenticatedRequest,
+  res: Response,
+) => {
   try {
-    const user = await authService.updateProfile(req.user!.userId, req.body);
+    const { name, language, region, phoneNumber, image } = req.body;
+
+    const dto: UpdateProfileDto = {
+      ...(name !== undefined && { name: name as string }),
+      ...(language !== undefined && { language: language as Language }),
+      ...(region !== undefined && { region: region as Region }),
+      ...(phoneNumber !== undefined && { phoneNumber: phoneNumber as string }),
+      ...(image !== undefined && { image: image as string }),
+    };
+
+    const user = await authService.updateProfile(req.user!.userId, dto);
     return ok(res, user);
   } catch (err: any) {
     return badRequest(res, err.message);

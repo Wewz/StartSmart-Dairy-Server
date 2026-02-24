@@ -1,4 +1,4 @@
-import { UserRole, Language, Region } from "@prisma/client";
+import { UserRole, Language, Region, CourseStatus, OutputType } from "@prisma/client";
 import { Request } from "express";
 
 export interface AuthenticatedRequest extends Request {
@@ -33,6 +33,10 @@ export interface VerifyOtpDto {
   deviceLabel?: string;
 }
 
+export interface GoogleAuthDto {
+  idToken: string;
+}
+
 export interface CreateCourseDto {
   titleEn: string;
   titleFil: string;
@@ -41,6 +45,17 @@ export interface CreateCourseDto {
   thumbnailUrl?: string;
   isInviteOnly?: boolean;
   order?: number;
+}
+
+export interface UpdateCourseDto {
+  titleEn?: string;
+  titleFil?: string;
+  descriptionEn?: string;
+  descriptionFil?: string;
+  thumbnailUrl?: string;
+  isInviteOnly?: boolean;
+  order?: number;
+  status?: CourseStatus;
 }
 
 export interface CreateModuleDto {
@@ -95,15 +110,28 @@ export interface CreateReplyDto {
 }
 
 export interface SubmitOutputDto {
-  type: "VISION_STATEMENT" | "DAIRY_VALUE_CHAIN" | "TRAINING_EVALUATION";
+  type: OutputType;
   title: string;
   content?: string;
   fileUrl?: string;
+  courseId?: string;
+  moduleId?: string;
 }
 
 export interface ReviewOutputDto {
   status: "REVIEWED" | "RETURNED";
   adminComment?: string;
+}
+
+export interface AdminEnrollDto {
+  userId: string;
+  courseId: string;
+}
+
+export interface UpdateUserDto {
+  role?: UserRole;
+  isActive?: boolean;
+  name?: string;
 }
 
 export interface PaginationQuery {
@@ -116,4 +144,12 @@ export interface ApiResponse<T = unknown> {
   success: boolean;
   message: string;
   data?: T;
+}
+
+export interface UpdateProfileDto {
+  name?: string;
+  language?: Language;
+  region?: Region | null;
+  phoneNumber?: string;
+  image?: string;
 }

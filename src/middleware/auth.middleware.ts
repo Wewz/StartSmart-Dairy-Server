@@ -1,8 +1,8 @@
 import { Response, NextFunction } from "express";
-import { verifyToken } from "../lib/auth";
-import { prisma } from "../lib/prisma";
-import { AuthenticatedRequest } from "../types";
-import { unauthorized, forbidden } from "../utils/reponse";
+import { verifyToken } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { AuthenticatedRequest } from "@/types";
+import { unauthorized, forbidden } from "@/utils/reponse";
 import { UserRole } from "@prisma/client";
 
 export const authenticate = async (

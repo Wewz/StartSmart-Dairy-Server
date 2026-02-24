@@ -10,7 +10,7 @@ import authRouter from "./routes/auth.routes";
 import courseRouter from "./routes/course.routes";
 import moduleRouter from "./routes/module.routes";
 import lessonRouter from "./routes/lessons.routes";
-import { quizRouter, progressRouter, discussionRouter, outputRouter, notificationRouter } from "./routes";
+import { quizRouter, progressRouter, discussionRouter, outputRouter, notificationRouter, adminRouter } from "./routes";
 import { errorHandler, notFoundHandler } from "./middleware/error.middleware";
 
 const app = express();
@@ -32,6 +32,7 @@ app.use("/api/progress", progressRouter);
 app.use("/api/discussions", discussionRouter);
 app.use("/api/outputs", outputRouter);
 app.use("/api/notifications", notificationRouter);
+app.use("/api/admin", adminRouter);
 
 // Health check
 app.get("/api/health", (_req, res) => res.json({ status: "ok", timestamp: new Date().toISOString() }));

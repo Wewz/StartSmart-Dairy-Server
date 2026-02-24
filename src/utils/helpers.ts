@@ -30,3 +30,8 @@ export const slugify = (text: string): string => {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)/g, "");
 };
+
+// Safely extract a string from Express req.params
+// Express types params as string | string[] but at runtime route params are always strings
+export const param = (value: string | string[]): string =>
+  Array.isArray(value) ? value[0] : value;

@@ -11,7 +11,9 @@ export interface JwtPayload {
 }
 
 export const signToken = (payload: JwtPayload): string => {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN } as jwt.SignOptions);
+  return jwt.sign(payload, JWT_SECRET, {
+    expiresIn: JWT_EXPIRES_IN,
+  } as jwt.SignOptions);
 };
 
 export const verifyToken = (token: string): JwtPayload => {
@@ -24,7 +26,7 @@ export const hashPassword = async (password: string): Promise<string> => {
 
 export const comparePassword = async (
   plain: string,
-  hashed: string
+  hashed: string,
 ): Promise<boolean> => {
   return bcrypt.compare(plain, hashed);
 };
@@ -33,6 +35,9 @@ export const hashOtp = async (code: string): Promise<string> => {
   return bcrypt.hash(code, 10);
 };
 
-export const compareOtp = async (code: string, hashed: string): Promise<boolean> => {
+export const compareOtp = async (
+  code: string,
+  hashed: string,
+): Promise<boolean> => {
   return bcrypt.compare(code, hashed);
 };
