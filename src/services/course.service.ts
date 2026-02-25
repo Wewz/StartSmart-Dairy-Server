@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { sendEnrollmentEmail } from "@/lib/mailer";
 import { slugify, generateInviteCode } from "@/utils/helpers";
 import {
   CreateCourseDto,
@@ -326,6 +327,9 @@ export class CourseService {
         link: `/courses/${course.slug}`,
       },
     });
+
+    const appUrl = process.env.CLIENT_URL ?? "http://localhost:3000";
+    sendEnrollmentEmail(user.email, user.name ?? user.email, course.titleEn, appUrl).catch(console.error);
 
     return enrollment;
   }

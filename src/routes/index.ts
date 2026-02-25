@@ -65,3 +65,5 @@ adminRouter.get("/stats", authenticate, requireAdmin, admin.getDashboardStats);
 adminRouter.get("/users", authenticate, requireAdmin, admin.listUsers);
 adminRouter.get("/users/:id", authenticate, requireAdmin, admin.getUser);
 adminRouter.patch("/users/:id", authenticate, requireAdmin, admin.updateUser);
+adminRouter.post("/users", authenticate, requireAdmin, admin.createUser);
+adminRouter.get("/enrollments", authenticate, requireAdmin, admin.listEnrollments);

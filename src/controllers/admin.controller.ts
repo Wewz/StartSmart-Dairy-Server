@@ -5,6 +5,33 @@ import { ok, badRequest, notFound, serverError } from "@/utils/reponse";
 import { param } from "@/utils/helpers";
 import { UserRole } from "@prisma/client";
 
+export const createUser = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { name, email, role } = req.body;
+    if (!name || !email || !role) return badRequest(res, "name, email and role are required");
+    const user = await adminService.createUser({ name, email, role: role as UserRole });
+    return ok(res, user);
+  } catch (err: any) {
+    return badRequest(res, err.message);
+  }
+};
+
+export const listEnrollments = async (
+  req: AuthenticatedRequest,
+  res: Response,
+) => {
+  try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+    const courseId = req.query.courseId as string | undefined;
+    const userId = req.query.userId as string | undefined;
+    const result = await adminService.listEnrollments({ page, limit, courseId, userId });
+    return ok(res, result);
+  } catch (err: any) {
+    return serverError(res, err.message);
+  }
+};
+
 export const getDashboardStats = async (
   req: AuthenticatedRequest,
   res: Response,

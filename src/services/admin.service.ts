@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { UpdateUserDto } from "@/types";
 import { UserRole } from "@prisma/client";
+import { sendInviteEmail } from "@/lib/mailer";
 
 export class AdminService {
   async listUsers(opts: {
@@ -95,6 +96,62 @@ export class AdminService {
         region: true,
       },
     });
+  }
+
+  async createUser(dto: { name: string; email: string; role: UserRole }) {
+    const existing = await prisma.user.findUnique({ where: { email: dto.email } });
+    if (existing) {
+      // Already exists — just update their role
+      return prisma.user.update({
+        where: { email: dto.email },
+        data: { role: dto.role },
+      });
+    }
+
+    const user = await prisma.user.create({
+      data: { name: dto.name, email: dto.email, role: dto.role },
+    });
+
+    const appUrl = process.env.CLIENT_URL ?? "http://localhost:3000";
+    // Fire-and-forget — don't block on email failure
+    sendInviteEmail(dto.email, dto.name, dto.role, appUrl).catch(console.error);
+
+    return user;
+  }
+
+  async listEnrollments(opts: {
+    page?: number;
+    limit?: number;
+    courseId?: string;
+    userId?: string;
+  }) {
+    const page = opts.page ?? 1;
+    const limit = Math.min(opts.limit ?? 20, 100);
+    const skip = (page - 1) * limit;
+
+    const where = {
+      ...(opts.courseId ? { courseId: opts.courseId } : {}),
+      ...(opts.userId ? { userId: opts.userId } : {}),
+    };
+
+    const [enrollments, total] = await Promise.all([
+      prisma.enrollment.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { enrolledAt: "desc" },
+        include: {
+          user: { select: { id: true, name: true, email: true, image: true } },
+          course: { select: { id: true, slug: true, titleEn: true, titleFil: true } },
+        },
+      }),
+      prisma.enrollment.count({ where }),
+    ]);
+
+    return {
+      enrollments,
+      pagination: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
   }
 
   async getDashboardStats() {
