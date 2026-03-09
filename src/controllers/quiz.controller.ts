@@ -20,7 +20,7 @@ export const getQuiz = async (req: AuthenticatedRequest, res: Response) => {
     );
     return ok(res, data);
   } catch (err: any) {
-    return notFound(res, err.message);
+    return notFound(res, err.message, "NOT_FOUND");
   }
 };
 
@@ -29,7 +29,7 @@ export const submitQuiz = async (req: AuthenticatedRequest, res: Response) => {
     const result = await quizService.submitQuiz(req.user!.userId, req.body);
     return ok(res, result, "Quiz submitted");
   } catch (err: any) {
-    return badRequest(res, err.message);
+    return badRequest(res, err.message, "BAD_REQUEST");
   }
 };
 
@@ -44,7 +44,7 @@ export const getAttemptHistory = async (
     );
     return ok(res, attempts);
   } catch (err: any) {
-    return serverError(res, err.message);
+    return serverError(res, err.message, "INTERNAL_ERROR");
   }
 };
 
@@ -58,7 +58,7 @@ export const getQuizAdmin = async (
     const quiz = await quizService.getQuizAdmin(param(req.params.id));
     return ok(res, quiz);
   } catch (err: any) {
-    return notFound(res, err.message);
+    return notFound(res, err.message, "NOT_FOUND");
   }
 };
 
@@ -67,7 +67,7 @@ export const createQuiz = async (req: AuthenticatedRequest, res: Response) => {
     const quiz = await quizService.createQuiz(req.body);
     return created(res, quiz);
   } catch (err: any) {
-    return badRequest(res, err.message);
+    return badRequest(res, err.message, "BAD_REQUEST");
   }
 };
 
@@ -76,7 +76,7 @@ export const updateQuiz = async (req: AuthenticatedRequest, res: Response) => {
     const quiz = await quizService.updateQuiz(param(req.params.id), req.body);
     return ok(res, quiz);
   } catch (err: any) {
-    return badRequest(res, err.message);
+    return badRequest(res, err.message, "BAD_REQUEST");
   }
 };
 
@@ -85,7 +85,16 @@ export const deleteQuiz = async (req: AuthenticatedRequest, res: Response) => {
     await quizService.deleteQuiz(param(req.params.id));
     return ok(res, null, "Quiz deleted");
   } catch (err: any) {
-    return serverError(res, err.message);
+    return serverError(res, err.message, "INTERNAL_ERROR");
+  }
+};
+
+export const restoreQuiz = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const quiz = await quizService.restoreQuiz(param(req.params.id));
+    return ok(res, quiz, "Quiz restored");
+  } catch (err: any) {
+    return badRequest(res, err.message, "BAD_REQUEST");
   }
 };
 
@@ -97,7 +106,7 @@ export const addQuestion = async (req: AuthenticatedRequest, res: Response) => {
     );
     return created(res, question);
   } catch (err: any) {
-    return badRequest(res, err.message);
+    return badRequest(res, err.message, "BAD_REQUEST");
   }
 };
 
@@ -112,7 +121,7 @@ export const updateQuestion = async (
     );
     return ok(res, question);
   } catch (err: any) {
-    return badRequest(res, err.message);
+    return badRequest(res, err.message, "BAD_REQUEST");
   }
 };
 
@@ -124,7 +133,7 @@ export const deleteQuestion = async (
     await quizService.deleteQuestion(param(req.params.questionId));
     return ok(res, null, "Question deleted");
   } catch (err: any) {
-    return serverError(res, err.message);
+    return serverError(res, err.message, "INTERNAL_ERROR");
   }
 };
 
@@ -139,7 +148,7 @@ export const updateAnswerOption = async (
     );
     return ok(res, option);
   } catch (err: any) {
-    return badRequest(res, err.message);
+    return badRequest(res, err.message, "BAD_REQUEST");
   }
 };
 
@@ -151,6 +160,6 @@ export const deleteAnswerOption = async (
     await quizService.deleteAnswerOption(param(req.params.optionId));
     return ok(res, null, "Option deleted");
   } catch (err: any) {
-    return serverError(res, err.message);
+    return serverError(res, err.message, "INTERNAL_ERROR");
   }
 };

@@ -3,12 +3,11 @@
 
 generator client {
   provider        = "prisma-client-js"
-  previewFeatures = ["fullTextSearch"]
+  previewFeatures = ["fullTextSearchPostgres"]
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 // ============================================
 // ENUMS
@@ -61,6 +60,31 @@ enum QuizType {
   PRE_TEST
   POST_TEST
   FORMATIVE
+}
+
+enum ModuleItemType {
+  LESSON
+  QUIZ
+  TASK
+}
+
+enum QuestionType {
+  MULTIPLE_CHOICE
+  TRUE_FALSE
+  SHORT_ANSWER
+  ESSAY
+}
+
+enum TaskType {
+  OUTPUT_SUBMISSION
+  REFLECTION
+  ACTIVITY
+}
+
+enum TaskSubmissionStatus {
+  SUBMITTED
+  REVIEWED
+  RETURNED
 }
 
 enum OutputType {
@@ -136,6 +160,9 @@ model User {
   notifications    Notification[]
   createdCourses   Course[]           @relation("CourseCreator")
   inviteCodeUses   InviteCodeUse[]
+  taskSubmissions  TaskSubmission[]
+  taskReviews      TaskSubmission[]   @relation("TaskReviewer")
+  itemProgress     ModuleItemProgress[]
 
   @@map("users")
 }
@@ -287,6 +314,8 @@ model Course {
   descriptionEn  String          @db.Text
   descriptionFil String          @db.Text
   thumbnailUrl   String?
+  bannerUrl      String?
+  bannerFileId   String?
   status         CourseStatus    @default(DRAFT)
   order          Int             @default(0)
   isInviteOnly   Boolean         @default(true) // if true, requires invite code
@@ -311,6 +340,8 @@ model Module {
   titleFil             String
   descriptionEn        String?            @db.Text
   descriptionFil       String?            @db.Text
+  bannerUrl            String?
+  bannerFileId         String?
   order                Int                @default(0)
   // Progressive unlock configuration
   requiresPreTest      Boolean            @default(false)
@@ -323,6 +354,8 @@ model Module {
   course               Course             @relation(fields: [courseId], references: [id], onDelete: Cascade)
   lessons              Lesson[]
   quizzes              Quiz[]
+  moduleItems          ModuleItem[]
+  tasks                ModuleTask[]
   moduleProgress       ModuleProgress[]
   lockStatus           ModuleLockStatus[]
   threads              DiscussionThread[]
@@ -337,6 +370,8 @@ model Lesson {
   moduleId         String
   titleEn          String
   titleFil         String
+  bannerUrl        String?
+  bannerFileId     String?
   bodyEn           String?          @db.Text
   bodyFil          String?          @db.Text
   youtubeId        String?
@@ -347,9 +382,13 @@ model Lesson {
   requiresPrevious Boolean          @default(true)
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
+  deletedAt        DateTime?
   module           Module           @relation(fields: [moduleId], references: [id], onDelete: Cascade)
   materials        CourseMaterial[]
   lessonProgress   LessonProgress[]
+  sections         LessonSection[]
+  moduleItem       ModuleItem?
+  transcripts      VideoTranscript[]
 
   @@index([moduleId, order])
   @@map("lessons")
@@ -358,16 +397,140 @@ model Lesson {
 model CourseMaterial {
   id         String       @id @default(cuid())
   lessonId   String
+  lessonSectionId String?
   nameEn     String
   nameFil    String?
   fileUrl    String
   fileType   MaterialType
   fileSizeKb Int?
+  fileId        String?
+  mimeType      String?
+  fileSizeBytes Int?
+  previewUrl    String?
+  originalName  String?
   order      Int          @default(0)
   createdAt  DateTime     @default(now())
   lesson     Lesson       @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  lessonSection LessonSection? @relation(fields: [lessonSectionId], references: [id], onDelete: Cascade)
 
   @@map("course_materials")
+}
+
+model ModuleItem {
+  id         String         @id @default(cuid())
+  moduleId   String
+  type       ModuleItemType
+  order      Int
+  lessonId   String?        @unique
+  quizId     String?        @unique
+  taskId     String?        @unique
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+  module     Module         @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  lesson     Lesson?        @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  quiz       Quiz?          @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  task       ModuleTask?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  progress   ModuleItemProgress[]
+
+  @@unique([moduleId, order])
+  @@index([moduleId, type])
+  @@map("module_items")
+}
+
+model LessonSection {
+  id           String           @id @default(cuid())
+  lessonId     String
+  headingEn    String
+  headingFil   String?
+  bodyEn       String?          @db.Text
+  bodyFil      String?          @db.Text
+  imageUrl     String?
+  imageFileId  String?
+  imageAltEn   String?
+  imageAltFil  String?
+  order        Int              @default(0)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  lesson       Lesson           @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  materials    CourseMaterial[]
+
+  @@unique([lessonId, order])
+  @@map("lesson_sections")
+}
+
+model ModuleTask {
+  id                String             @id @default(cuid())
+  moduleId          String
+  titleEn           String
+  titleFil          String?
+  descriptionEn     String?            @db.Text
+  descriptionFil    String?            @db.Text
+  taskType          TaskType
+  maxScore          Int?
+  dueAt             DateTime?
+  isRequired        Boolean            @default(true)
+  requiresReview    Boolean            @default(true)
+  allowResubmission Boolean            @default(true)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  module            Module             @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  submissions       TaskSubmission[]
+  moduleItem        ModuleItem?
+
+  @@index([moduleId])
+  @@map("module_tasks")
+}
+
+model TaskSubmission {
+  id              String               @id @default(cuid())
+  taskId          String
+  userId          String
+  submissionText  String?              @db.Text
+  submissionUrl   String?
+  submissionFileId String?
+  submittedAt     DateTime             @default(now())
+  status          TaskSubmissionStatus @default(SUBMITTED)
+  score           Int?
+  feedback        String?              @db.Text
+  reviewedAt      DateTime?
+  reviewedById    String?
+  task            ModuleTask           @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user            User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reviewedBy      User?                @relation("TaskReviewer", fields: [reviewedById], references: [id])
+
+  @@unique([taskId, userId])
+  @@index([userId])
+  @@map("task_submissions")
+}
+
+model VideoTranscript {
+  id            String    @id @default(cuid())
+  lessonId      String
+  language      Language
+  content       String    @db.Text
+  source        String?
+  generatedByAi Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  lesson        Lesson    @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@unique([lessonId, language])
+  @@map("video_transcripts")
+}
+
+model ModuleItemProgress {
+  id          String      @id @default(cuid())
+  userId      String
+  moduleItemId String
+  isCompleted Boolean     @default(false)
+  completedAt DateTime?
+  updatedAt   DateTime    @updatedAt
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  moduleItem  ModuleItem  @relation(fields: [moduleItemId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, moduleItemId])
+  @@index([moduleItemId])
+  @@map("module_item_progress")
 }
 
 // ============================================
@@ -446,9 +609,11 @@ model Quiz {
   blocksProgress Boolean       @default(true)
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
+  deletedAt      DateTime?
   module         Module        @relation(fields: [moduleId], references: [id], onDelete: Cascade)
   questions      Question[]
   attempts       QuizAttempt[]
+  moduleItem     ModuleItem?
 
   @@map("quizzes")
 }
@@ -458,6 +623,10 @@ model Question {
   quizId    String
   textEn    String          @db.Text
   textFil   String          @db.Text
+  questionType QuestionType @default(MULTIPLE_CHOICE)
+  rubricEn     String?      @db.Text
+  rubricFil    String?      @db.Text
+  maxScore     Int?
   order     Int             @default(0)
   points    Int             @default(1)
   createdAt DateTime        @default(now())
@@ -490,6 +659,8 @@ model QuizAttempt {
   maxScore        Int?
   percentage      Int?
   isPassed        Boolean?
+  requiresGrading Boolean         @default(false)
+  isFullyGraded   Boolean         @default(true)
   triggeredUnlock Boolean         @default(false)
   startedAt       DateTime        @default(now())
   submittedAt     DateTime?
@@ -507,6 +678,10 @@ model AttemptAnswer {
   questionId     String
   selectedOption String?
   isCorrect      Boolean?
+  textAnswer     String?        @db.Text
+  gradingData    Json?
+  manualScore    Int?
+  manualFeedback String?        @db.Text
   attempt        QuizAttempt   @relation(fields: [attemptId], references: [id], onDelete: Cascade)
   question       Question      @relation(fields: [questionId], references: [id])
   option         AnswerOption? @relation(fields: [selectedOption], references: [id])

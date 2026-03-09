@@ -10,14 +10,29 @@ import authRouter from "./routes/auth.routes";
 import courseRouter from "./routes/course.routes";
 import moduleRouter from "./routes/module.routes";
 import lessonRouter from "./routes/lessons.routes";
-import { quizRouter, progressRouter, discussionRouter, outputRouter, notificationRouter, adminRouter } from "./routes";
+import moduleItemsRouter from "./routes/module-items.routes";
+import taskRouter from "./routes/task.routes";
+import uploadRouter from "./routes/upload.routes";
+import {
+  quizRouter,
+  progressRouter,
+  discussionRouter,
+  outputRouter,
+  notificationRouter,
+  adminRouter,
+} from "./routes";
 import { errorHandler, notFoundHandler } from "./middleware/error.middleware";
 
 const app = express();
 
 // Middleware
 app.use(helmet());
-app.use(cors({ origin: process.env.CLIENT_URL || "http://localhost:3000", credentials: true }));
+app.use(
+  cors({
+    origin: process.env.CLIENT_URL || "http://localhost:3000",
+    credentials: true,
+  }),
+);
 app.use(morgan("dev"));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -27,7 +42,10 @@ app.use("/api/auth", authRouter);
 app.use("/api/courses", courseRouter);
 app.use("/api/modules", moduleRouter);
 app.use("/api/lessons", lessonRouter);
+app.use("/api/module-items", moduleItemsRouter);
+app.use("/api/tasks", taskRouter);
 app.use("/api/quizzes", quizRouter);
+app.use("/api/uploads", uploadRouter);
 app.use("/api/progress", progressRouter);
 app.use("/api/discussions", discussionRouter);
 app.use("/api/outputs", outputRouter);
@@ -35,7 +53,9 @@ app.use("/api/notifications", notificationRouter);
 app.use("/api/admin", adminRouter);
 
 // Health check
-app.get("/api/health", (_req, res) => res.json({ status: "ok", timestamp: new Date().toISOString() }));
+app.get("/api/health", (_req, res) =>
+  res.json({ status: "ok", timestamp: new Date().toISOString() }),
+);
 
 // Error handling
 app.use(notFoundHandler);

@@ -19,7 +19,7 @@ export const listCourses = async (req: AuthenticatedRequest, res: Response) => {
     );
     return ok(res, courses);
   } catch (err: any) {
-    return serverError(res, err.message);
+    return serverError(res, err.message, "INTERNAL_ERROR");
   }
 };
 
@@ -32,7 +32,7 @@ export const getCourse = async (req: AuthenticatedRequest, res: Response) => {
     );
     return ok(res, course);
   } catch (err: any) {
-    return notFound(res, err.message);
+    return notFound(res, err.message, "NOT_FOUND");
   }
 };
 
@@ -44,7 +44,7 @@ export const createCourse = async (
     const course = await courseService.createCourse(req.body, req.user!.userId);
     return created(res, course);
   } catch (err: any) {
-    return badRequest(res, err.message);
+    return badRequest(res, err.message, "BAD_REQUEST");
   }
 };
 
@@ -86,7 +86,7 @@ export const updateCourse = async (
     const course = await courseService.updateCourse(param(req.params.id), dto);
     return ok(res, course);
   } catch (err: any) {
-    return badRequest(res, err.message);
+    return badRequest(res, err.message, "BAD_REQUEST");
   }
 };
 
@@ -98,7 +98,7 @@ export const deleteCourse = async (
     await courseService.deleteCourse(param(req.params.id));
     return ok(res, null, "Course deleted");
   } catch (err: any) {
-    return serverError(res, err.message);
+    return serverError(res, err.message, "INTERNAL_ERROR");
   }
 };
 
@@ -125,7 +125,7 @@ export const getModule = async (req: AuthenticatedRequest, res: Response) => {
     );
     return ok(res, module);
   } catch (err: any) {
-    return notFound(res, err.message);
+    return notFound(res, err.message, "NOT_FOUND");
   }
 };
 
@@ -137,7 +137,7 @@ export const createModule = async (
     const module = await courseService.createModule(req.body);
     return created(res, module);
   } catch (err: any) {
-    return badRequest(res, err.message);
+    return badRequest(res, err.message, "BAD_REQUEST");
   }
 };
 
@@ -164,7 +164,7 @@ export const deleteModule = async (
     await courseService.deleteModule(param(req.params.id));
     return ok(res, null, "Module deleted");
   } catch (err: any) {
-    return serverError(res, err.message);
+    return serverError(res, err.message, "INTERNAL_ERROR");
   }
 };
 
@@ -189,7 +189,7 @@ export const getLesson = async (req: AuthenticatedRequest, res: Response) => {
     );
     return ok(res, lesson);
   } catch (err: any) {
-    return notFound(res, err.message);
+    return notFound(res, err.message, "NOT_FOUND");
   }
 };
 
@@ -204,7 +204,7 @@ export const updateLesson = async (
     );
     return ok(res, lesson);
   } catch (err: any) {
-    return badRequest(res, err.message);
+    return badRequest(res, err.message, "BAD_REQUEST");
   }
 };
 
@@ -238,7 +238,7 @@ export const createInviteCode = async (
     );
     return created(res, code);
   } catch (err: any) {
-    return badRequest(res, err.message);
+    return badRequest(res, err.message, "BAD_REQUEST");
   }
 };
 
@@ -252,7 +252,19 @@ export const listInviteCodes = async (
     );
     return ok(res, codes);
   } catch (err: any) {
-    return serverError(res, err.message);
+    return serverError(res, err.message, "INTERNAL_ERROR");
+  }
+};
+
+export const restoreLesson = async (
+  req: AuthenticatedRequest,
+  res: Response,
+) => {
+  try {
+    const lesson = await courseService.restoreLesson(param(req.params.id));
+    return ok(res, lesson, "Lesson restored");
+  } catch (err: any) {
+    return badRequest(res, err.message, "BAD_REQUEST");
   }
 };
 
@@ -281,7 +293,10 @@ export const adminEnrollUser = async (
       userId: req.body.userId,
       courseId: req.body.courseId,
     };
-    const enrollment = await courseService.adminEnrollUser(dto, req.user!.userId);
+    const enrollment = await courseService.adminEnrollUser(
+      dto,
+      req.user!.userId,
+    );
     return created(res, enrollment, "User enrolled successfully");
   } catch (err: any) {
     return badRequest(res, err.message);

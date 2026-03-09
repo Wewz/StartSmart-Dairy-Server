@@ -9,6 +9,9 @@ import {
   AdminEnrollDto,
 } from "@/types";
 import { CourseStatus, LessonStatus, Prisma } from "@prisma/client";
+import { sanitizePlainText, sanitizeRichText } from "@/utils/sanitize";
+import { withNotDeleted } from "@/utils/soft-delete";
+import { moduleItemService } from "./module-item.service";
 
 export class CourseService {
   async listCourses(userId: string, role: string) {
@@ -46,6 +49,7 @@ export class CourseService {
           orderBy: { order: "asc" },
           include: {
             lessons: {
+              where: withNotDeleted(),
               orderBy: { order: "asc" },
               select: {
                 id: true,
@@ -57,6 +61,7 @@ export class CourseService {
               },
             },
             quizzes: {
+              where: withNotDeleted(),
               select: {
                 id: true,
                 titleEn: true,
@@ -79,17 +84,49 @@ export class CourseService {
   }
 
   async createCourse(dto: CreateCourseDto, createdById: string) {
-    const slug = slugify(dto.titleEn);
+    const titleEn = sanitizePlainText(dto.titleEn) ?? dto.titleEn;
+    const titleFil = sanitizePlainText(dto.titleFil) ?? dto.titleFil;
+    const descriptionEn =
+      sanitizeRichText(dto.descriptionEn) ?? dto.descriptionEn;
+    const descriptionFil =
+      sanitizeRichText(dto.descriptionFil) ?? dto.descriptionFil;
+
+    const slug = slugify(titleEn);
     const existing = await prisma.course.findUnique({ where: { slug } });
     const finalSlug = existing ? `${slug}-${Date.now()}` : slug;
 
     return prisma.course.create({
-      data: { ...dto, slug: finalSlug, createdById },
+      data: {
+        ...dto,
+        titleEn,
+        titleFil,
+        descriptionEn,
+        descriptionFil,
+        slug: finalSlug,
+        createdById,
+      },
     });
   }
 
   async updateCourse(id: string, data: UpdateCourseDto) {
-    return prisma.course.update({ where: { id }, data });
+    const normalized: UpdateCourseDto = { ...data };
+
+    if (typeof data.titleEn === "string") {
+      normalized.titleEn = sanitizePlainText(data.titleEn) ?? data.titleEn;
+    }
+    if (typeof data.titleFil === "string") {
+      normalized.titleFil = sanitizePlainText(data.titleFil) ?? data.titleFil;
+    }
+    if (typeof data.descriptionEn === "string") {
+      normalized.descriptionEn =
+        sanitizeRichText(data.descriptionEn) ?? data.descriptionEn;
+    }
+    if (typeof data.descriptionFil === "string") {
+      normalized.descriptionFil =
+        sanitizeRichText(data.descriptionFil) ?? data.descriptionFil;
+    }
+
+    return prisma.course.update({ where: { id }, data: normalized });
   }
 
   async deleteCourse(id: string) {
@@ -103,7 +140,12 @@ export class CourseService {
       orderBy: { order: "asc" },
       include: {
         lessons: {
-          where: role === "ADMIN" || role === "SUPER_ADMIN" ? {} : { status: "PUBLISHED" },
+          where:
+            role === "ADMIN" || role === "SUPER_ADMIN"
+              ? (withNotDeleted() as Prisma.LessonWhereInput)
+              : (withNotDeleted({
+                  status: LessonStatus.PUBLISHED,
+                }) as Prisma.LessonWhereInput),
           orderBy: { order: "asc" },
           select: {
             id: true,
@@ -116,12 +158,21 @@ export class CourseService {
           },
         },
         quizzes: {
+          where: withNotDeleted(),
           select: {
             id: true,
             titleEn: true,
             titleFil: true,
             type: true,
             isPublished: true,
+          },
+        },
+        moduleItems: {
+          orderBy: { order: "asc" },
+          include: {
+            lesson: { select: { id: true, titleEn: true, status: true } },
+            quiz: { select: { id: true, titleEn: true, isPublished: true } },
+            task: { select: { id: true, titleEn: true, taskType: true } },
           },
         },
         lockStatus: { where: { userId } },
@@ -137,7 +188,12 @@ export class CourseService {
       where: { id },
       include: {
         lessons: {
-          where: role === "ADMIN" || role === "SUPER_ADMIN" ? {} : { status: "PUBLISHED" },
+          where:
+            role === "ADMIN" || role === "SUPER_ADMIN"
+              ? (withNotDeleted() as Prisma.LessonWhereInput)
+              : (withNotDeleted({
+                  status: LessonStatus.PUBLISHED,
+                }) as Prisma.LessonWhereInput),
           orderBy: { order: "asc" },
           select: {
             id: true,
@@ -150,6 +206,7 @@ export class CourseService {
           },
         },
         quizzes: {
+          where: withNotDeleted(),
           select: {
             id: true,
             titleEn: true,
@@ -161,9 +218,39 @@ export class CourseService {
             timeLimitMin: true,
           },
         },
+        moduleItems: {
+          orderBy: { order: "asc" },
+          include: {
+            lesson: {
+              select: {
+                id: true,
+                titleEn: true,
+                status: true,
+                deletedAt: true,
+              },
+            },
+            quiz: {
+              select: {
+                id: true,
+                titleEn: true,
+                isPublished: true,
+                deletedAt: true,
+              },
+            },
+            task: {
+              select: {
+                id: true,
+                titleEn: true,
+                taskType: true,
+              },
+            },
+          },
+        },
         lockStatus: { where: { userId } },
         moduleProgress: { where: { userId } },
-        course: { select: { id: true, slug: true, titleEn: true, titleFil: true } },
+        course: {
+          select: { id: true, slug: true, titleEn: true, titleFil: true },
+        },
       },
     });
     if (!module) throw new Error("Module not found");
@@ -184,14 +271,34 @@ export class CourseService {
 
   // Lessons
   async createLesson(dto: CreateLessonDto) {
-    return prisma.lesson.create({ data: dto });
+    return prisma.$transaction(async (tx) => {
+      const lesson = await tx.lesson.create({
+        data: {
+          ...dto,
+          titleEn: sanitizePlainText(dto.titleEn) ?? dto.titleEn,
+          titleFil: sanitizePlainText(dto.titleFil) ?? dto.titleFil,
+          bodyEn: sanitizeRichText(dto.bodyEn),
+          bodyFil: sanitizeRichText(dto.bodyFil),
+        },
+      });
+
+      await moduleItemService.createLessonItem(dto.moduleId, lesson.id, tx);
+      return lesson;
+    });
   }
 
   async getLesson(id: string, userId: string) {
-    const lesson = await prisma.lesson.findUnique({
-      where: { id },
+    const lesson = await prisma.lesson.findFirst({
+      where: withNotDeleted({ id }),
       include: {
         materials: { orderBy: { order: "asc" } },
+        sections: {
+          orderBy: { order: "asc" },
+          include: {
+            materials: { orderBy: { order: "asc" } },
+          },
+        },
+        transcripts: { orderBy: { language: "asc" } },
         lessonProgress: { where: { userId } },
         module: {
           select: {
@@ -209,11 +316,36 @@ export class CourseService {
   }
 
   async updateLesson(id: string, data: Prisma.LessonUpdateInput) {
-    return prisma.lesson.update({ where: { id }, data });
+    const normalized: Prisma.LessonUpdateInput = { ...data };
+
+    if (typeof data.titleEn === "string") {
+      normalized.titleEn = sanitizePlainText(data.titleEn) ?? data.titleEn;
+    }
+    if (typeof data.titleFil === "string") {
+      normalized.titleFil = sanitizePlainText(data.titleFil) ?? data.titleFil;
+    }
+    if (typeof data.bodyEn === "string") {
+      normalized.bodyEn = sanitizeRichText(data.bodyEn) ?? data.bodyEn;
+    }
+    if (typeof data.bodyFil === "string") {
+      normalized.bodyFil = sanitizeRichText(data.bodyFil) ?? data.bodyFil;
+    }
+
+    return prisma.lesson.update({ where: { id }, data: normalized });
   }
 
   async deleteLesson(id: string) {
-    return prisma.lesson.delete({ where: { id } });
+    return prisma.lesson.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
+  }
+
+  async restoreLesson(id: string) {
+    return prisma.lesson.update({
+      where: { id },
+      data: { deletedAt: null },
+    });
   }
 
   // Invite Codes
@@ -329,7 +461,12 @@ export class CourseService {
     });
 
     const appUrl = process.env.CLIENT_URL ?? "http://localhost:3000";
-    sendEnrollmentEmail(user.email, user.name ?? user.email, course.titleEn, appUrl).catch(console.error);
+    sendEnrollmentEmail(
+      user.email,
+      user.name ?? user.email,
+      course.titleEn,
+      appUrl,
+    ).catch(console.error);
 
     return enrollment;
   }
