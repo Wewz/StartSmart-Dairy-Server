@@ -55,7 +55,9 @@ export const deleteModuleItem = async (
   res: Response,
 ) => {
   try {
-    const result = await moduleItemService.deleteModuleItem(param(req.params.id));
+    const result = await moduleItemService.deleteModuleItem(
+      param(req.params.id),
+    );
     return ok(
       res,
       result,
