@@ -1,7 +1,42 @@
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 
+type AddModuleItemInput =
+  | { itemType: "LESSON"; lessonId: string }
+  | { itemType: "QUIZ"; quizId: string }
+  | { itemType: "TASK"; taskId: string };
+
 class ModuleItemService {
+  private async removeHiddenModuleItems(moduleId: string) {
+    const moduleItems = await prisma.moduleItem.findMany({
+      where: { moduleId },
+      include: {
+        lesson: { select: { id: true, deletedAt: true } },
+        quiz: { select: { id: true, deletedAt: true } },
+        task: { select: { id: true } },
+      },
+    });
+
+    const staleIds = moduleItems
+      .filter((item) => {
+        if (item.type === "LESSON") {
+          return !item.lesson || item.lesson.deletedAt !== null;
+        }
+        if (item.type === "QUIZ") {
+          return !item.quiz || item.quiz.deletedAt !== null;
+        }
+        if (item.type === "TASK") {
+          return !item.task;
+        }
+        return false;
+      })
+      .map((item) => item.id);
+
+    if (staleIds.length > 0) {
+      await prisma.moduleItem.deleteMany({ where: { id: { in: staleIds } } });
+    }
+  }
+
   async getNextOrder(
     moduleId: string,
     tx: Prisma.TransactionClient = prisma,
@@ -63,8 +98,10 @@ class ModuleItemService {
     });
   }
 
-  async listModuleItems(moduleId: string, role: string) {
+  async listModuleItems(moduleId: string, role: string, userId?: string) {
     const isAdmin = role === "ADMIN" || role === "SUPER_ADMIN";
+
+    await this.removeHiddenModuleItems(moduleId);
 
     const items = await prisma.moduleItem.findMany({
       where: { moduleId },
@@ -78,6 +115,12 @@ class ModuleItemService {
             status: true,
             durationSecs: true,
             deletedAt: true,
+            lessonProgress: userId
+              ? {
+                  where: { userId },
+                  select: { isCompleted: true, watchedPercent: true },
+                }
+              : undefined,
           },
         },
         quiz: {
@@ -88,6 +131,14 @@ class ModuleItemService {
             type: true,
             isPublished: true,
             deletedAt: true,
+            blocksProgress: true,
+            attempts: userId
+              ? {
+                  where: { userId },
+                  select: { isPassed: true, percentage: true },
+                  orderBy: { attemptNum: "desc" },
+                }
+              : undefined,
           },
         },
         task: {
@@ -99,6 +150,14 @@ class ModuleItemService {
             dueAt: true,
             isRequired: true,
             requiresReview: true,
+            submissions: userId
+              ? {
+                  where: { userId },
+                  select: { status: true, submittedAt: true },
+                  orderBy: { submittedAt: "desc" },
+                  take: 1,
+                }
+              : undefined,
           },
         },
       },
@@ -125,6 +184,8 @@ class ModuleItemService {
       throw new Error("orderedIds must contain at least one item id");
     }
 
+    await this.removeHiddenModuleItems(moduleId);
+
     const moduleItems = await prisma.moduleItem.findMany({
       where: { moduleId },
       select: { id: true },
@@ -145,16 +206,130 @@ class ModuleItemService {
       );
     }
 
-    await prisma.$transaction(
-      uniqueOrderedIds.map((id, index) =>
-        prisma.moduleItem.update({
+    await prisma.$transaction(async (tx) => {
+      // Use a two-pass strategy to avoid transient unique(moduleId, order) collisions.
+      for (const [index, id] of uniqueOrderedIds.entries()) {
+        await tx.moduleItem.update({
+          where: { id },
+          data: { order: index + 10000 },
+        });
+      }
+
+      for (const [index, id] of uniqueOrderedIds.entries()) {
+        await tx.moduleItem.update({
           where: { id },
           data: { order: index },
-        }),
-      ),
-    );
+        });
+      }
+    });
 
     return this.listModuleItems(moduleId, "ADMIN");
+  }
+
+  async addModuleItem(moduleId: string, data: AddModuleItemInput) {
+    if (data.itemType === "LESSON") {
+      const lesson = await prisma.lesson.findFirst({
+        where: { id: data.lessonId, moduleId, deletedAt: null },
+        select: { id: true },
+      });
+      if (!lesson) throw new Error("Lesson not found in this module");
+      return this.createLessonItem(moduleId, data.lessonId);
+    }
+
+    if (data.itemType === "QUIZ") {
+      const quiz = await prisma.quiz.findFirst({
+        where: { id: data.quizId, moduleId, deletedAt: null },
+        select: { id: true },
+      });
+      if (!quiz) throw new Error("Quiz not found in this module");
+      return this.createQuizItem(moduleId, data.quizId);
+    }
+
+    const task = await prisma.moduleTask.findFirst({
+      where: { id: data.taskId, moduleId },
+      select: { id: true },
+    });
+    if (!task) throw new Error("Task not found in this module");
+    return this.createTaskItem(moduleId, data.taskId);
+  }
+
+  async deleteModuleItem(itemId: string) {
+    const item = await prisma.moduleItem.findUnique({
+      where: { id: itemId },
+      include: {
+        lesson: { select: { id: true } },
+        quiz: { select: { id: true } },
+        task: { select: { id: true } },
+      },
+    });
+
+    if (!item) throw new Error("Module item not found");
+
+    if (item.type === "LESSON" && item.lessonId) {
+      const progressCount = await prisma.lessonProgress.count({
+        where: { lessonId: item.lessonId },
+      });
+
+      await prisma.$transaction(async (tx) => {
+        await tx.moduleItem.delete({ where: { id: itemId } });
+        if (progressCount > 0) {
+          await tx.lesson.update({
+            where: { id: item.lessonId! },
+            data: { deletedAt: new Date() },
+          });
+        } else {
+          await tx.lesson.delete({ where: { id: item.lessonId! } });
+        }
+      });
+
+      return {
+        archived: progressCount > 0,
+        itemType: "LESSON" as const,
+      };
+    }
+
+    if (item.type === "QUIZ" && item.quizId) {
+      const attemptCount = await prisma.quizAttempt.count({
+        where: { quizId: item.quizId },
+      });
+
+      await prisma.$transaction(async (tx) => {
+        await tx.moduleItem.delete({ where: { id: itemId } });
+        if (attemptCount > 0) {
+          await tx.quiz.update({
+            where: { id: item.quizId! },
+            data: { deletedAt: new Date() },
+          });
+        } else {
+          await tx.quiz.delete({ where: { id: item.quizId! } });
+        }
+      });
+
+      return {
+        archived: attemptCount > 0,
+        itemType: "QUIZ" as const,
+      };
+    }
+
+    if (item.type === "TASK" && item.taskId) {
+      const submissionCount = await prisma.taskSubmission.count({
+        where: { taskId: item.taskId },
+      });
+
+      await prisma.$transaction(async (tx) => {
+        await tx.moduleItem.delete({ where: { id: itemId } });
+        if (submissionCount === 0) {
+          await tx.moduleTask.delete({ where: { id: item.taskId! } });
+        }
+      });
+
+      return {
+        archived: submissionCount > 0,
+        itemType: "TASK" as const,
+      };
+    }
+
+    throw new Error("Unsupported module item type");
   }
 }
 
