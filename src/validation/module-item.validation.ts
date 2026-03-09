@@ -14,3 +14,5 @@ export const addModuleItemSchema = z.union([
     taskId: z.string().min(1),
   }),
 ]);
+
+export const restoreModuleItemSchema = addModuleItemSchema;

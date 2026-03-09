@@ -6,6 +6,16 @@ type AddModuleItemInput =
   | { itemType: "QUIZ"; quizId: string }
   | { itemType: "TASK"; taskId: string };
 
+type ArchivedModuleItem = {
+  itemType: "LESSON" | "QUIZ" | "TASK";
+  lessonId?: string;
+  quizId?: string;
+  taskId?: string;
+  titleEn: string;
+  titleFil: string | null;
+  archivedAt?: Date | null;
+};
+
 class ModuleItemService {
   private async removeHiddenModuleItems(moduleId: string) {
     const moduleItems = await prisma.moduleItem.findMany({
@@ -250,6 +260,166 @@ class ModuleItemService {
       select: { id: true },
     });
     if (!task) throw new Error("Task not found in this module");
+    return this.createTaskItem(moduleId, data.taskId);
+  }
+
+  async listArchivedModuleItems(
+    moduleId: string,
+  ): Promise<ArchivedModuleItem[]> {
+    const linkedItems = await prisma.moduleItem.findMany({
+      where: { moduleId },
+      select: { lessonId: true, quizId: true, taskId: true },
+    });
+
+    const linkedLessonIds = linkedItems
+      .map((item) => item.lessonId)
+      .filter((id): id is string => Boolean(id));
+    const linkedQuizIds = linkedItems
+      .map((item) => item.quizId)
+      .filter((id): id is string => Boolean(id));
+    const linkedTaskIds = linkedItems
+      .map((item) => item.taskId)
+      .filter((id): id is string => Boolean(id));
+
+    const [lessons, quizzes, tasks] = await Promise.all([
+      prisma.lesson.findMany({
+        where: {
+          moduleId,
+          deletedAt: { not: null },
+          ...(linkedLessonIds.length > 0
+            ? { id: { notIn: linkedLessonIds } }
+            : {}),
+        },
+        select: {
+          id: true,
+          titleEn: true,
+          titleFil: true,
+          deletedAt: true,
+        },
+        orderBy: { deletedAt: "desc" },
+      }),
+      prisma.quiz.findMany({
+        where: {
+          moduleId,
+          deletedAt: { not: null },
+          ...(linkedQuizIds.length > 0 ? { id: { notIn: linkedQuizIds } } : {}),
+        },
+        select: {
+          id: true,
+          titleEn: true,
+          titleFil: true,
+          deletedAt: true,
+        },
+        orderBy: { deletedAt: "desc" },
+      }),
+      prisma.moduleTask.findMany({
+        where: {
+          moduleId,
+          ...(linkedTaskIds.length > 0 ? { id: { notIn: linkedTaskIds } } : {}),
+          submissions: { some: {} },
+        },
+        select: {
+          id: true,
+          titleEn: true,
+          titleFil: true,
+          submissions: {
+            orderBy: { submittedAt: "desc" },
+            take: 1,
+            select: { submittedAt: true },
+          },
+        },
+      }),
+    ]);
+
+    return [
+      ...lessons.map((lesson) => ({
+        itemType: "LESSON" as const,
+        lessonId: lesson.id,
+        titleEn: lesson.titleEn,
+        titleFil: lesson.titleFil,
+        archivedAt: lesson.deletedAt,
+      })),
+      ...quizzes.map((quiz) => ({
+        itemType: "QUIZ" as const,
+        quizId: quiz.id,
+        titleEn: quiz.titleEn,
+        titleFil: quiz.titleFil,
+        archivedAt: quiz.deletedAt,
+      })),
+      ...tasks.map((task) => ({
+        itemType: "TASK" as const,
+        taskId: task.id,
+        titleEn: task.titleEn,
+        titleFil: task.titleFil,
+        archivedAt: task.submissions[0]?.submittedAt ?? null,
+      })),
+    ];
+  }
+
+  async restoreArchivedModuleItem(moduleId: string, data: AddModuleItemInput) {
+    if (data.itemType === "LESSON") {
+      const lesson = await prisma.lesson.findFirst({
+        where: { id: data.lessonId, moduleId },
+        select: { id: true, deletedAt: true },
+      });
+      if (!lesson) throw new Error("Lesson not found in this module");
+
+      const existingItem = await prisma.moduleItem.findFirst({
+        where: { moduleId, lessonId: data.lessonId },
+        select: { id: true },
+      });
+      if (existingItem) throw new Error("Lesson is already in the flow");
+
+      return prisma.$transaction(async (tx) => {
+        if (lesson.deletedAt) {
+          await tx.lesson.update({
+            where: { id: lesson.id },
+            data: { deletedAt: null },
+          });
+        }
+        return this.createLessonItem(moduleId, data.lessonId, tx);
+      });
+    }
+
+    if (data.itemType === "QUIZ") {
+      const quiz = await prisma.quiz.findFirst({
+        where: { id: data.quizId, moduleId },
+        select: { id: true, deletedAt: true },
+      });
+      if (!quiz) throw new Error("Quiz not found in this module");
+
+      const existingItem = await prisma.moduleItem.findFirst({
+        where: { moduleId, quizId: data.quizId },
+        select: { id: true },
+      });
+      if (existingItem) throw new Error("Quiz is already in the flow");
+
+      return prisma.$transaction(async (tx) => {
+        if (quiz.deletedAt) {
+          await tx.quiz.update({
+            where: { id: quiz.id },
+            data: { deletedAt: null },
+          });
+        }
+        return this.createQuizItem(moduleId, data.quizId, tx);
+      });
+    }
+
+    const task = await prisma.moduleTask.findFirst({
+      where: { id: data.taskId, moduleId },
+      select: { id: true, _count: { select: { submissions: true } } },
+    });
+    if (!task) throw new Error("Task not found in this module");
+    if (task._count.submissions === 0) {
+      throw new Error("Task is not archived and cannot be restored");
+    }
+
+    const existingItem = await prisma.moduleItem.findFirst({
+      where: { moduleId, taskId: data.taskId },
+      select: { id: true },
+    });
+    if (existingItem) throw new Error("Task is already in the flow");
+
     return this.createTaskItem(moduleId, data.taskId);
   }
 

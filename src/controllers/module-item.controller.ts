@@ -35,6 +35,20 @@ export const reorderModuleItems = async (
   }
 };
 
+export const listArchivedModuleItems = async (
+  req: AuthenticatedRequest,
+  res: Response,
+) => {
+  try {
+    const items = await moduleItemService.listArchivedModuleItems(
+      param(req.params.moduleId),
+    );
+    return ok(res, items);
+  } catch (err: any) {
+    return serverError(res, err.message, "INTERNAL_ERROR");
+  }
+};
+
 export const addModuleItem = async (
   req: AuthenticatedRequest,
   res: Response,
@@ -45,6 +59,21 @@ export const addModuleItem = async (
       req.body,
     );
     return created(res, item, "Module item added");
+  } catch (err: any) {
+    return badRequest(res, err.message, "BAD_REQUEST");
+  }
+};
+
+export const restoreModuleItem = async (
+  req: AuthenticatedRequest,
+  res: Response,
+) => {
+  try {
+    const item = await moduleItemService.restoreArchivedModuleItem(
+      param(req.params.moduleId),
+      req.body,
+    );
+    return ok(res, item, "Archived item restored to flow");
   } catch (err: any) {
     return badRequest(res, err.message, "BAD_REQUEST");
   }
