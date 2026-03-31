@@ -155,15 +155,16 @@ export class AdminService {
   }
 
   async getDashboardStats() {
-    const [totalUsers, totalEnrollments, totalCourses, pendingOutputs] =
+    const [totalUsers, totalEnrollments, totalCourses, pendingOutputs, pendingGrading] =
       await Promise.all([
         prisma.user.count({ where: { role: "STUDENT" } }),
         prisma.enrollment.count({ where: { status: "ACTIVE" } }),
         prisma.course.count({ where: { status: "PUBLISHED" } }),
         prisma.studentOutput.count({ where: { status: "PENDING" } }),
+        prisma.quizAttempt.count({ where: { isFullyGraded: false } }),
       ]);
 
-    return { totalUsers, totalEnrollments, totalCourses, pendingOutputs };
+    return { totalUsers, totalEnrollments, totalCourses, pendingOutputs, pendingGrading };
   }
 }
 

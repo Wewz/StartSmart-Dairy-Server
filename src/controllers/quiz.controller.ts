@@ -163,3 +163,71 @@ export const deleteAnswerOption = async (
     return serverError(res, err.message, "INTERNAL_ERROR");
   }
 };
+
+// ─── Grading ─────────────────────────────────────────────────────
+
+export const listPendingGrading = async (
+  req: AuthenticatedRequest,
+  res: Response,
+) => {
+  try {
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 20;
+    const data = await quizService.listPendingGrading(page, limit);
+    return ok(res, data);
+  } catch (err: any) {
+    return serverError(res, err.message, "INTERNAL_ERROR");
+  }
+};
+
+export const getGradingDetail = async (
+  req: AuthenticatedRequest,
+  res: Response,
+) => {
+  try {
+    const attempt = await quizService.getGradingDetail(
+      param(req.params.attemptId),
+    );
+    return ok(res, attempt);
+  } catch (err: any) {
+    return notFound(res, err.message, "NOT_FOUND");
+  }
+};
+
+export const gradeAnswer = async (
+  req: AuthenticatedRequest,
+  res: Response,
+) => {
+  try {
+    const { score, feedback } = req.body;
+    if (score === undefined || typeof score !== "number" || score < 0) {
+      return badRequest(res, "score is required and must be >= 0");
+    }
+    const answer = await quizService.gradeAnswer(
+      param(req.params.attemptAnswerId),
+      { score, feedback },
+    );
+    return ok(res, answer, "Answer graded");
+  } catch (err: any) {
+    return badRequest(res, err.message, "BAD_REQUEST");
+  }
+};
+
+export const gradeAllAnswers = async (
+  req: AuthenticatedRequest,
+  res: Response,
+) => {
+  try {
+    const { grades } = req.body;
+    if (!Array.isArray(grades) || grades.length === 0) {
+      return badRequest(res, "grades array is required");
+    }
+    const attempt = await quizService.gradeAllAnswers(
+      param(req.params.attemptId),
+      grades,
+    );
+    return ok(res, attempt, "All answers graded");
+  } catch (err: any) {
+    return badRequest(res, err.message, "BAD_REQUEST");
+  }
+};

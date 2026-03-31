@@ -128,6 +128,33 @@ notificationRouter.get("/", authenticate, notification.getNotifications);
 notificationRouter.patch("/:id/read", authenticate, notification.markAsRead);
 notificationRouter.patch("/read-all", authenticate, notification.markAllAsRead);
 
+// ─── Grading routes (admin) ──────────────────────────────────────
+export const gradingRouter = Router();
+gradingRouter.get(
+  "/pending",
+  authenticate,
+  requireAdmin,
+  quiz.listPendingGrading,
+);
+gradingRouter.get(
+  "/:attemptId",
+  authenticate,
+  requireAdmin,
+  quiz.getGradingDetail,
+);
+gradingRouter.patch(
+  "/answers/:attemptAnswerId",
+  authenticate,
+  requireAdmin,
+  quiz.gradeAnswer,
+);
+gradingRouter.patch(
+  "/:attemptId/grade-all",
+  authenticate,
+  requireAdmin,
+  quiz.gradeAllAnswers,
+);
+
 // ─── Admin routes ─────────────────────────────────────────────────
 export const adminRouter = Router();
 adminRouter.get("/stats", authenticate, requireAdmin, admin.getDashboardStats);

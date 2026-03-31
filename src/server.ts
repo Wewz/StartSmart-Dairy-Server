@@ -13,12 +13,15 @@ import lessonRouter from "./routes/lessons.routes";
 import moduleItemsRouter from "./routes/module-items.routes";
 import taskRouter from "./routes/task.routes";
 import uploadRouter from "./routes/upload.routes";
+import translationRouter from "./routes/translation.routes";
+import aiRouter from "./routes/ai.routes";
 import {
   quizRouter,
   progressRouter,
   discussionRouter,
   outputRouter,
   notificationRouter,
+  gradingRouter,
   adminRouter,
 } from "./routes";
 import { errorHandler, notFoundHandler } from "./middleware/error.middleware";
@@ -50,6 +53,9 @@ app.use("/api/progress", progressRouter);
 app.use("/api/discussions", discussionRouter);
 app.use("/api/outputs", outputRouter);
 app.use("/api/notifications", notificationRouter);
+app.use("/api/grading", gradingRouter);
+app.use("/api/translate", translationRouter);
+app.use("/api/ai", aiRouter);
 app.use("/api/admin", adminRouter);
 
 // Health check

@@ -11,6 +11,9 @@ export const createLessonSchema = z
     mp4Url: z.string().url("mp4Url must be a valid URL").optional(),
     durationSecs: z.number().int().min(0).optional(),
     order: z.number().int().min(0).optional(),
+    bannerUrl: z.string().nullable().optional(),
+    bannerFileId: z.string().nullable().optional(),
+    status: z.enum(["DRAFT", "PUBLISHED"]).optional(),
   })
   .strict();
 
@@ -26,6 +29,8 @@ export const updateLessonSchema = z
     order: z.number().int().min(0).optional(),
     status: z.enum(["DRAFT", "PUBLISHED"]).optional(),
     requiresPrevious: z.boolean().optional(),
+    bannerUrl: z.string().nullable().optional(),
+    bannerFileId: z.string().nullable().optional(),
   })
   .strict()
   .refine((data) => Object.keys(data).length > 0, {

@@ -121,32 +121,59 @@ class TaskService {
     const task = await prisma.moduleTask.findUnique({ where: { id: taskId } });
     if (!task) throw new Error("Task not found");
 
-    const existing = await prisma.taskSubmission.findUnique({
-      where: { taskId_userId: { taskId, userId } },
+    // Find latest submission for this user+task
+    const latest = await prisma.taskSubmission.findFirst({
+      where: { taskId, userId },
+      orderBy: { attemptNum: "desc" },
     });
-    if (existing && !task.allowResubmission) {
-      throw new Error("Resubmission is not allowed for this task");
+
+    // If latest exists and was RETURNED, create a new attempt
+    // If latest exists and is not RETURNED, reject if resubmission not allowed
+    if (latest) {
+      if (latest.status === "RETURNED") {
+        // Create new attempt
+        return prisma.taskSubmission.create({
+          data: {
+            taskId,
+            userId,
+            attemptNum: latest.attemptNum + 1,
+            submissionText: sanitizeRichText(payload.submissionText),
+            submissionUrl: payload.submissionUrl,
+            submissionFileId: payload.submissionFileId,
+          },
+        });
+      }
+
+      if (!task.allowResubmission) {
+        throw new Error("Resubmission is not allowed for this task");
+      }
+
+      // Overwrite current attempt (not yet reviewed or re-submitting)
+      return prisma.taskSubmission.update({
+        where: { id: latest.id },
+        data: {
+          submissionText: sanitizeRichText(payload.submissionText),
+          submissionUrl: payload.submissionUrl,
+          submissionFileId: payload.submissionFileId,
+          status: "SUBMITTED",
+          score: null,
+          feedback: null,
+          reviewedAt: null,
+          reviewedById: null,
+          submittedAt: new Date(),
+        },
+      });
     }
 
-    return prisma.taskSubmission.upsert({
-      where: { taskId_userId: { taskId, userId } },
-      create: {
+    // First submission
+    return prisma.taskSubmission.create({
+      data: {
         taskId,
         userId,
+        attemptNum: 1,
         submissionText: sanitizeRichText(payload.submissionText),
         submissionUrl: payload.submissionUrl,
         submissionFileId: payload.submissionFileId,
-      },
-      update: {
-        submissionText: sanitizeRichText(payload.submissionText),
-        submissionUrl: payload.submissionUrl,
-        submissionFileId: payload.submissionFileId,
-        status: "SUBMITTED",
-        score: null,
-        feedback: null,
-        reviewedAt: null,
-        reviewedById: null,
-        submittedAt: new Date(),
       },
     });
   }

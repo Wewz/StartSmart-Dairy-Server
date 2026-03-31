@@ -69,6 +69,8 @@ export interface CreateModuleDto {
   requiresAllLessons?: boolean;
   requiresPostTest?: boolean;
   passingScoreToUnlock?: number;
+  bannerUrl?: string;
+  bannerFileId?: string;
 }
 
 export interface CreateLessonDto {
@@ -81,13 +83,17 @@ export interface CreateLessonDto {
   mp4Url?: string;
   durationSecs?: number;
   order?: number;
+  bannerUrl?: string | null;
+  bannerFileId?: string | null;
+  status?: "DRAFT" | "PUBLISHED";
 }
 
 export interface SubmitQuizDto {
   quizId: string;
   answers: Array<{
     questionId: string;
-    selectedOptionId: string;
+    selectedOptionId?: string;
+    textAnswer?: string;
   }>;
 }
 

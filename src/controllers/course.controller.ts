@@ -189,7 +189,11 @@ export const getLesson = async (req: AuthenticatedRequest, res: Response) => {
     );
     return ok(res, lesson);
   } catch (err: any) {
-    return notFound(res, err.message, "NOT_FOUND");
+    if (err.message === "Lesson not found") {
+      return notFound(res, err.message, "NOT_FOUND");
+    }
+    console.error("getLesson error:", err);
+    return serverError(res, err.message, "INTERNAL_ERROR");
   }
 };
 

@@ -451,6 +451,7 @@ model LessonSection {
   order        Int              @default(0)
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
+  deletedAt    DateTime?
   lesson       Lesson           @relation(fields: [lessonId], references: [id], onDelete: Cascade)
   materials    CourseMaterial[]
 
@@ -473,6 +474,7 @@ model ModuleTask {
   allowResubmission Boolean            @default(true)
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
+  deletedAt         DateTime?
   module            Module             @relation(fields: [moduleId], references: [id], onDelete: Cascade)
   submissions       TaskSubmission[]
   moduleItem        ModuleItem?
@@ -485,6 +487,7 @@ model TaskSubmission {
   id              String               @id @default(cuid())
   taskId          String
   userId          String
+  attemptNum      Int                  @default(1)
   submissionText  String?              @db.Text
   submissionUrl   String?
   submissionFileId String?
@@ -498,8 +501,8 @@ model TaskSubmission {
   user            User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   reviewedBy      User?                @relation("TaskReviewer", fields: [reviewedById], references: [id])
 
-  @@unique([taskId, userId])
-  @@index([userId])
+  @@unique([taskId, userId, attemptNum])
+  @@index([taskId, userId])
   @@map("task_submissions")
 }
 
