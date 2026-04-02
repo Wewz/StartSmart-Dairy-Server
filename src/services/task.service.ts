@@ -14,11 +14,61 @@ type CreateTaskInput = {
   isRequired?: boolean;
   requiresReview?: boolean;
   allowResubmission?: boolean;
+  youtubeId?: string | null;
 };
 
 type UpdateTaskInput = Partial<CreateTaskInput>;
 
+type AddAttachmentInput = {
+  nameEn: string;
+  nameFil?: string;
+  fileUrl: string;
+  fileType: string;
+  fileId?: string;
+  fileSizeBytes?: number;
+  mimeType?: string;
+};
+
 class TaskService {
+  async getTask(taskId: string, userId: string) {
+    const task = await prisma.moduleTask.findUnique({
+      where: { id: taskId },
+      include: {
+        rubricCriteria: { orderBy: { order: "asc" } },
+        attachments: { orderBy: { order: "asc" } },
+        submissions: {
+          where: { userId },
+          orderBy: { attemptNum: "desc" },
+          take: 1,
+          include: { criterionScores: { include: { criterion: true } } },
+        },
+      },
+    });
+    if (!task) throw new Error("Task not found");
+    return task;
+  }
+
+  async listPendingSubmissions() {
+    return prisma.taskSubmission.findMany({
+      where: { status: "SUBMITTED" },
+      orderBy: { submittedAt: "asc" },
+      include: {
+        user: { select: { id: true, name: true, email: true, image: true } },
+        task: {
+          select: {
+            id: true,
+            titleEn: true,
+            titleFil: true,
+            taskType: true,
+            moduleId: true,
+            rubricCriteria: { orderBy: { order: "asc" } },
+          },
+        },
+        criterionScores: { include: { criterion: true } },
+      },
+    });
+  }
+
   async listModuleTasks(moduleId: string) {
     return prisma.moduleTask.findMany({
       where: { moduleId },
@@ -58,6 +108,7 @@ class TaskService {
           isRequired: data.isRequired,
           requiresReview: data.requiresReview,
           allowResubmission: data.allowResubmission,
+          youtubeId: data.youtubeId ?? undefined,
         },
       });
 
@@ -97,7 +148,33 @@ class TaskService {
         ...(data.allowResubmission !== undefined && {
           allowResubmission: data.allowResubmission,
         }),
+        ...(data.youtubeId !== undefined && {
+          youtubeId: data.youtubeId ?? null,
+        }),
       },
+    });
+  }
+
+  async addAttachment(taskId: string, data: AddAttachmentInput) {
+    const count = await prisma.taskAttachment.count({ where: { taskId } });
+    return prisma.taskAttachment.create({
+      data: {
+        taskId,
+        nameEn: sanitizePlainText(data.nameEn.trim()) ?? data.nameEn.trim(),
+        nameFil: data.nameFil?.trim() || undefined,
+        fileUrl: data.fileUrl,
+        fileType: data.fileType as any,
+        fileId: data.fileId,
+        fileSizeBytes: data.fileSizeBytes,
+        mimeType: data.mimeType,
+        order: count,
+      },
+    });
+  }
+
+  async deleteAttachment(attachmentId: string, taskId: string) {
+    return prisma.taskAttachment.deleteMany({
+      where: { id: attachmentId, taskId },
     });
   }
 

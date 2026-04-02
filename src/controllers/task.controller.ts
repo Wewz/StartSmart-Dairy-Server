@@ -1,8 +1,33 @@
 import { Response } from "express";
 import { AuthenticatedRequest } from "@/types";
 import { param } from "@/utils/helpers";
-import { badRequest, created, ok, serverError } from "@/utils/reponse";
+import { badRequest, created, notFound, ok, serverError } from "@/utils/reponse";
 import { taskService } from "@/services/task.service";
+
+export const getTask = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const task = await taskService.getTask(
+      param(req.params.taskId),
+      req.user!.userId,
+    );
+    return ok(res, task);
+  } catch (err: any) {
+    if (err.message === "Task not found") return notFound(res, err.message);
+    return serverError(res, err.message);
+  }
+};
+
+export const listPendingSubmissions = async (
+  req: AuthenticatedRequest,
+  res: Response,
+) => {
+  try {
+    const submissions = await taskService.listPendingSubmissions();
+    return ok(res, submissions);
+  } catch (err: any) {
+    return serverError(res, err.message);
+  }
+};
 
 export const listModuleTasks = async (
   req: AuthenticatedRequest,
@@ -53,6 +78,27 @@ export const submitTask = async (req: AuthenticatedRequest, res: Response) => {
     return created(res, submission, "Task submitted");
   } catch (err: any) {
     return badRequest(res, err.message, "BAD_REQUEST");
+  }
+};
+
+export const addAttachment = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const attachment = await taskService.addAttachment(param(req.params.taskId), req.body);
+    return created(res, attachment);
+  } catch (err: any) {
+    return badRequest(res, err.message, "BAD_REQUEST");
+  }
+};
+
+export const deleteAttachment = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    await taskService.deleteAttachment(
+      param(req.params.attachmentId),
+      param(req.params.taskId),
+    );
+    return ok(res, null, "Attachment deleted");
+  } catch (err: any) {
+    return serverError(res, err.message, "INTERNAL_ERROR");
   }
 };
 

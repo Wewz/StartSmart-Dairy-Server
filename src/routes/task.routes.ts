@@ -12,6 +12,13 @@ import {
 const router = Router();
 
 router.get("/module/:moduleId", authenticate, task.listModuleTasks);
+router.get(
+  "/submissions/pending",
+  authenticate,
+  requireAdmin,
+  task.listPendingSubmissions,
+);
+router.get("/:taskId", authenticate, task.getTask);
 router.post(
   "/",
   authenticate,
@@ -27,12 +34,9 @@ router.patch(
   task.updateTask,
 );
 router.delete("/:id", authenticate, requireAdmin, task.deleteTask);
-router.post(
-  "/:taskId/submissions",
-  authenticate,
-  validateRequest({ body: submitTaskSchema }),
-  task.submitTask,
-);
+router.post("/:taskId/submissions", authenticate, validateRequest({ body: submitTaskSchema }), task.submitTask);
+router.post("/:taskId/attachments", authenticate, requireAdmin, task.addAttachment);
+router.delete("/:taskId/attachments/:attachmentId", authenticate, requireAdmin, task.deleteAttachment);
 router.patch(
   "/submissions/:submissionId/review",
   authenticate,

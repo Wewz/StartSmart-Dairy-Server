@@ -12,6 +12,7 @@ export const createTaskSchema = z.object({
   isRequired: z.boolean().optional(),
   requiresReview: z.boolean().optional(),
   allowResubmission: z.boolean().optional(),
+  youtubeId: z.string().nullish(),
 });
 
 export const updateTaskSchema = createTaskSchema

@@ -494,6 +494,7 @@ model ModuleTask {
   isRequired        Boolean            @default(true)
   requiresReview    Boolean            @default(true)
   allowResubmission Boolean            @default(true)
+  youtubeId         String?
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
   deletedAt         DateTime?
@@ -501,9 +502,28 @@ model ModuleTask {
   submissions       TaskSubmission[]
   moduleItem        ModuleItem?
   rubricCriteria    TaskRubricCriterion[]
+  attachments       TaskAttachment[]
 
   @@index([moduleId])
   @@map("module_tasks")
+}
+
+model TaskAttachment {
+  id            String       @id @default(cuid())
+  taskId        String
+  nameEn        String
+  nameFil       String?
+  fileUrl       String
+  fileType      MaterialType
+  fileId        String?
+  fileSizeBytes Int?
+  mimeType      String?
+  order         Int          @default(0)
+  createdAt     DateTime     @default(now())
+  task          ModuleTask   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+  @@map("task_attachments")
 }
 
 model TaskSubmission {

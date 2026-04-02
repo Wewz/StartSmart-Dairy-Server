@@ -21,9 +21,9 @@ export const updateLessonSchema = z
   .object({
     titleEn: z.string().min(1).optional(),
     titleFil: z.string().min(1).optional(),
-    bodyEn: z.string().optional(),
-    bodyFil: z.string().optional(),
-    youtubeId: z.string().optional(),
+    bodyEn: z.string().nullable().optional(),
+    bodyFil: z.string().nullable().optional(),
+    youtubeId: z.string().nullable().optional(),
     mp4Url: z.string().url("mp4Url must be a valid URL").nullable().optional(),
     durationSecs: z.number().int().min(0).nullable().optional(),
     order: z.number().int().min(0).optional(),
