@@ -15,6 +15,9 @@ import taskRouter from "./routes/task.routes";
 import uploadRouter from "./routes/upload.routes";
 import translationRouter from "./routes/translation.routes";
 import aiRouter from "./routes/ai.routes";
+import timestampRouter from "./routes/timestamp.routes";
+import taskRubricRouter from "./routes/task-rubric.routes";
+import inviteCodeRouter from "./routes/invite-code.routes";
 import {
   quizRouter,
   progressRouter,
@@ -57,6 +60,9 @@ app.use("/api/grading", gradingRouter);
 app.use("/api/translate", translationRouter);
 app.use("/api/ai", aiRouter);
 app.use("/api/admin", adminRouter);
+app.use("/api", timestampRouter);
+app.use("/api", taskRubricRouter);
+app.use("/api/invite-codes", inviteCodeRouter);
 
 // Health check
 app.get("/api/health", (_req, res) =>

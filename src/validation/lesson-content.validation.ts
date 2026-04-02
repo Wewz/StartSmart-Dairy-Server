@@ -6,10 +6,13 @@ export const createLessonSectionSchema = z
     headingFil: z.string().optional(),
     bodyEn: z.string().optional(),
     bodyFil: z.string().optional(),
-    imageUrl: z.string().url().optional(),
-    imageFileId: z.string().optional(),
+    imageUrl: z.string().url().optional().nullable(),
+    imageFileId: z.string().optional().nullable(),
     imageAltEn: z.string().optional(),
     imageAltFil: z.string().optional(),
+    youtubeId: z.string().optional().nullable(),
+    mp4Url: z.string().optional().nullable(),
+    videoPosition: z.enum(["ABOVE_BODY", "BELOW_BODY"]).optional(),
     order: z.number().int().min(0).optional(),
   })
   .strict();

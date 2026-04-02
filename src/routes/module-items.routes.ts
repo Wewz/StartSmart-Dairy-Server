@@ -40,4 +40,9 @@ router.patch(
 );
 router.delete("/:id", authenticate, requireAdmin, moduleItem.deleteModuleItem);
 
+// Inline lesson embedding
+router.get("/lesson/:lessonId/inline", authenticate, requireAdmin, moduleItem.getInlineItems);
+router.patch("/lesson/:lessonId/inline/reorder", authenticate, requireAdmin, moduleItem.reorderInlineItems);
+router.patch("/:id/inline", authenticate, requireAdmin, moduleItem.setInlineLesson);
+
 export default router;

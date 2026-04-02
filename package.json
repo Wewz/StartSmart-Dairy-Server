@@ -27,7 +27,7 @@
     "@types/sanitize-html": "^2.16.1",
     "add": "^2.0.6",
     "nodemon": "^3.1.11",
-    "prisma": "^7.4.2",
+    "prisma": "^7.6.0",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.9.3"
@@ -37,7 +37,7 @@
     "@aws-sdk/s3-request-presigner": "^3.993.0",
     "@google/generative-ai": "^0.24.1",
     "@prisma/adapter-pg": "^7.4.2",
-    "@prisma/client": "^7.4.2",
+    "@prisma/client": "^7.6.0",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "date-fns": "^4.1.0",

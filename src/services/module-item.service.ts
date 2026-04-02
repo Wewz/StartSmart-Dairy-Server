@@ -236,6 +236,74 @@ class ModuleItemService {
     return this.listModuleItems(moduleId, "ADMIN");
   }
 
+  async getInlineItemsForLesson(lessonId: string) {
+    return prisma.moduleItem.findMany({
+      where: { inlineLessonId: lessonId },
+      orderBy: { inlineOrder: "asc" },
+      include: {
+        task: {
+          select: {
+            id: true,
+            titleEn: true,
+            titleFil: true,
+            taskType: true,
+            maxScore: true,
+            descriptionEn: true,
+            isRequired: true,
+          },
+        },
+        quiz: {
+          select: {
+            id: true,
+            titleEn: true,
+            titleFil: true,
+            type: true,
+            isPublished: true,
+            questions: {
+              select: { id: true, textEn: true, questionType: true, points: true },
+              orderBy: { order: "asc" },
+            },
+          },
+        },
+      },
+    });
+  }
+
+  async setInlineLesson(itemId: string, lessonId: string | null, inlineOrder?: number) {
+    const item = await prisma.moduleItem.findUnique({ where: { id: itemId } });
+    if (!item) throw new Error("Module item not found");
+
+    if (lessonId !== null) {
+      // Default order: after last inline item in this lesson
+      if (inlineOrder === undefined) {
+        const lastInline = await prisma.moduleItem.findFirst({
+          where: { inlineLessonId: lessonId },
+          orderBy: { inlineOrder: "desc" },
+          select: { inlineOrder: true },
+        });
+        inlineOrder = (lastInline?.inlineOrder ?? -1) + 1;
+      }
+    }
+
+    return prisma.moduleItem.update({
+      where: { id: itemId },
+      data: {
+        inlineLessonId: lessonId,
+        inlineOrder: lessonId !== null ? inlineOrder : null,
+      },
+    });
+  }
+
+  async reorderInlineItems(lessonId: string, orderedIds: string[]) {
+    const updates = orderedIds.map((id, index) =>
+      prisma.moduleItem.update({
+        where: { id },
+        data: { inlineOrder: index },
+      }),
+    );
+    return prisma.$transaction(updates);
+  }
+
   async addModuleItem(moduleId: string, data: AddModuleItemInput) {
     if (data.itemType === "LESSON") {
       const lesson = await prisma.lesson.findFirst({

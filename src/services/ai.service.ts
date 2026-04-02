@@ -153,6 +153,74 @@ export async function transcribeYouTube(
   }
 }
 
+// ─── Timestamp Generation ────────────────────────────────────────────────────
+
+export type GeneratedTimestamp = {
+  timestampSecs: number;
+  type: "CHAPTER" | "SUBTITLE" | "DISCUSSION" | "KEY_TERM";
+  labelEn: string;
+  labelFil?: string;
+  noteEn?: string;
+};
+
+export async function generateTimestamps(
+  transcript: TranscriptEntry[],
+): Promise<{ timestamps: GeneratedTimestamp[]; modelUsed: string }> {
+  if (!transcript.length) throw new Error("No transcript provided");
+
+  const transcriptText = transcript
+    .map((t) => `[${t.start_time}] ${t.text}`)
+    .join("\n");
+
+  const prompt = `You are analyzing a video transcript for an agricultural training course about dairy farming in the Philippines.
+
+Given this transcript with timestamps, identify:
+1. CHAPTER: Major topic changes (short title, 2-6 words). Use at least one per significant section.
+2. KEY_TERM: Important vocabulary or concepts worth highlighting (term + 1-sentence definition in noteEn).
+3. DISCUSSION: Natural points for student reflection or discussion (a question prompt in noteEn).
+
+Rules:
+- timestampSecs must be an integer (seconds from video start, converted from HH:MM:SS)
+- labelEn should be concise (max 60 chars)
+- noteEn is optional extra text (for KEY_TERM: definition; for DISCUSSION: question)
+- Return between 3 and 20 timestamps total
+- Do not include SUBTITLE type
+
+Return ONLY a JSON array (no markdown fences, no extra text):
+[
+  { "timestampSecs": 0, "type": "CHAPTER", "labelEn": "Introduction to Dairy Farming" },
+  { "timestampSecs": 45, "type": "KEY_TERM", "labelEn": "Holstein-Friesian", "noteEn": "A high-yield dairy breed originating from the Netherlands, known for its black-and-white markings." },
+  { "timestampSecs": 120, "type": "DISCUSSION", "labelEn": "Breed Selection", "noteEn": "What factors would you consider when choosing a dairy breed for your farm?" }
+]
+
+Transcript:
+${transcriptText}`;
+
+  const { text, modelUsed } = await generateWithFallback(prompt);
+
+  let timestamps: GeneratedTimestamp[];
+  try {
+    timestamps = JSON.parse(stripFences(text));
+  } catch {
+    throw new Error("AI returned invalid JSON for timestamps");
+  }
+
+  // Clamp and validate
+  timestamps = timestamps
+    .filter(
+      (t) =>
+        typeof t.timestampSecs === "number" &&
+        typeof t.labelEn === "string" &&
+        ["CHAPTER", "KEY_TERM", "DISCUSSION", "SUBTITLE"].includes(t.type),
+    )
+    .map((t) => ({
+      ...t,
+      timestampSecs: Math.max(0, Math.round(t.timestampSecs)),
+    }));
+
+  return { timestamps, modelUsed };
+}
+
 // ─── Essay Grading ──────────────────────────────────────────────────────────
 
 export async function gradeEssay(

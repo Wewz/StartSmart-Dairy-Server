@@ -159,3 +159,31 @@ export interface UpdateProfileDto {
   phoneNumber?: string;
   image?: string;
 }
+
+// ─── Phase 8 DTOs ─────────────────────────────────────────────────────────────
+
+export interface CreateTimestampDto {
+  lessonId: string;
+  lessonSectionId?: string;
+  timestampSecs: number;
+  labelEn: string;
+  labelFil?: string;
+  noteEn?: string;
+  noteFil?: string;
+  type?: "CHAPTER" | "SUBTITLE" | "DISCUSSION" | "KEY_TERM";
+  order?: number;
+}
+
+export interface CreateRubricCriterionDto {
+  titleEn: string;
+  titleFil?: string;
+  descEn?: string;
+  descFil?: string;
+  maxPoints: number;
+  order?: number;
+}
+
+export interface GradeTaskSubmissionDto {
+  criterionScores: Array<{ criterionId: string; score: number }>;
+  feedback?: string;
+}

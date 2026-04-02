@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { sendEnrollmentEmail } from "@/lib/mailer";
-import { slugify, generateInviteCode } from "@/utils/helpers";
+import { slugify } from "@/utils/helpers";
 import {
   CreateCourseDto,
   CreateModuleDto,
@@ -293,9 +293,35 @@ export class CourseService {
       include: {
         materials: { orderBy: { order: "asc" } },
         sections: {
+          where: withNotDeleted() as Prisma.LessonSectionWhereInput,
           orderBy: { order: "asc" },
           include: {
             materials: { orderBy: { order: "asc" } },
+          },
+        },
+        inlineItems: {
+          orderBy: { inlineOrder: "asc" },
+          include: {
+            task: {
+              select: {
+                id: true,
+                titleEn: true,
+                titleFil: true,
+                taskType: true,
+                maxScore: true,
+                descriptionEn: true,
+                isRequired: true,
+              },
+            },
+            quiz: {
+              select: {
+                id: true,
+                titleEn: true,
+                titleFil: true,
+                type: true,
+                isPublished: true,
+              },
+            },
           },
         },
         transcripts: { orderBy: { language: "asc" } },
@@ -348,83 +374,10 @@ export class CourseService {
     });
   }
 
-  // Invite Codes
-  async createInviteCode(
-    courseId: string,
-    createdById: string,
-    opts: {
-      usageLimit?: number;
-      expiresAt?: Date;
-      note?: string;
-    },
-  ) {
-    let code = generateInviteCode();
-    // Ensure uniqueness
-    while (await prisma.inviteCode.findUnique({ where: { code } })) {
-      code = generateInviteCode();
-    }
-    return prisma.inviteCode.create({
-      data: { courseId, code, createdById, ...opts },
-    });
-  }
-
-  async listInviteCodes(courseId: string) {
-    return prisma.inviteCode.findMany({
-      where: { courseId },
-      include: { _count: { select: { uses: true } } },
-      orderBy: { createdAt: "desc" },
-    });
-  }
-
   async enrollWithCode(userId: string, code: string) {
-    const invite = await prisma.inviteCode.findUnique({
-      where: { code, isActive: true },
-    });
-    if (!invite) throw new Error("Invalid or inactive invite code");
-    if (invite.expiresAt && invite.expiresAt < new Date())
-      throw new Error("Invite code expired");
-    if (invite.usageLimit && invite.usageCount >= invite.usageLimit)
-      throw new Error("Invite code limit reached");
-
-    const existing = await prisma.enrollment.findUnique({
-      where: { userId_courseId: { userId, courseId: invite.courseId } },
-    });
-    if (existing) throw new Error("Already enrolled");
-
-    const [enrollment] = await prisma.$transaction([
-      prisma.enrollment.create({
-        data: {
-          userId,
-          courseId: invite.courseId,
-          enrolledVia: "invite_code",
-          inviteCodeId: invite.id,
-        },
-      }),
-      prisma.inviteCode.update({
-        where: { id: invite.id },
-        data: { usageCount: { increment: 1 } },
-      }),
-      prisma.inviteCodeUse.create({
-        data: { inviteCodeId: invite.id, userId },
-      }),
-    ]);
-
-    await this.initializeFirstModuleLock(userId, invite.courseId);
-
-    // Create enrollment notification
-    await prisma.notification.create({
-      data: {
-        userId,
-        type: "ENROLLMENT_CONFIRMED",
-        titleEn: "Enrollment Confirmed",
-        titleFil: "Nakumpirma ang Pagpapatala",
-        bodyEn: "You have been successfully enrolled in a new course.",
-        bodyFil: "Matagumpay kang naitalaga sa isang bagong kurso.",
-        link: `/courses/${invite.courseId}`,
-      },
-    });
-
-    return enrollment;
+    // Delegate to the invite code service (handles multi-course bundles)
+    const { inviteCodeService } = await import("./invite-code.service");
+    return inviteCodeService.redeem(userId, code, true);
   }
 
   async adminEnrollUser(dto: AdminEnrollDto, adminId: string) {

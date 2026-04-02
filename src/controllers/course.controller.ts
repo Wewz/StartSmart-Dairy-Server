@@ -224,21 +224,18 @@ export const deleteLesson = async (
   }
 };
 
-// Invite Codes
+// Invite Codes (backward-compat course-scoped endpoints)
 export const createInviteCode = async (
   req: AuthenticatedRequest,
   res: Response,
 ) => {
   try {
+    const { inviteCodeService } = await import("@/services/invite-code.service");
     const { courseId, usageLimit, expiresAt, note } = req.body;
-    const code = await courseService.createInviteCode(
-      courseId,
+    if (!courseId) return badRequest(res, "courseId is required", "BAD_REQUEST");
+    const code = await inviteCodeService.create(
+      { courseIds: [courseId], usageLimit, expiresAt, note },
       req.user!.userId,
-      {
-        usageLimit,
-        expiresAt: expiresAt ? new Date(expiresAt) : undefined,
-        note,
-      },
     );
     return created(res, code);
   } catch (err: any) {
@@ -251,9 +248,8 @@ export const listInviteCodes = async (
   res: Response,
 ) => {
   try {
-    const codes = await courseService.listInviteCodes(
-      param(req.params.courseId),
-    );
+    const { inviteCodeService } = await import("@/services/invite-code.service");
+    const codes = await inviteCodeService.list(param(req.params.courseId));
     return ok(res, codes);
   } catch (err: any) {
     return serverError(res, err.message, "INTERNAL_ERROR");

@@ -105,6 +105,18 @@ enum OtpPurpose {
   PASSWORD_RESET
 }
 
+enum TimestampType {
+  CHAPTER
+  SUBTITLE
+  DISCUSSION
+  KEY_TERM
+}
+
+enum VideoPosition {
+  ABOVE_BODY
+  BELOW_BODY
+}
+
 enum LockReason {
   NOT_STARTED
   AWAITING_PRETEST
@@ -252,22 +264,22 @@ model OtpChallenge {
 // ============================================
 
 model InviteCode {
-  id          String          @id @default(cuid())
-  courseId    String
-  code        String          @unique // e.g., "DAIRY-X7K2"
+  id          String             @id @default(cuid())
+  code        String             @unique // e.g., "DAIRY-X7K2"
+  bundleName  String?            // display name e.g., "Dairy Farming Program 2025"
   createdById String
-  usageLimit  Int? // null = unlimited; 1 = single-use
-  usageCount  Int             @default(0)
+  usageLimit  Int?               // null = unlimited; 1 = single-use
+  usageCount  Int                @default(0)
   expiresAt   DateTime?
-  isActive    Boolean         @default(true)
-  note        String? // admin label e.g., "Luzon batch Jan 2025"
-  createdAt   DateTime        @default(now())
-  course      Course          @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  isActive    Boolean            @default(true)
+  note        String?            // admin label e.g., "Luzon batch Jan 2025"
+  createdAt   DateTime           @default(now())
+  courses     InviteCodeCourse[]
   uses        InviteCodeUse[]
   enrollments Enrollment[]
 
   @@index([code])
-  @@index([courseId, isActive])
+  @@index([isActive])
   @@map("invite_codes")
 }
 
@@ -322,11 +334,11 @@ model Course {
   createdById    String
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
-  createdBy      User            @relation("CourseCreator", fields: [createdById], references: [id])
-  modules        Module[]
-  enrollments    Enrollment[]
-  inviteCodes    InviteCode[]
-  outputs        StudentOutput[]
+  createdBy         User               @relation("CourseCreator", fields: [createdById], references: [id])
+  modules           Module[]
+  enrollments       Enrollment[]
+  inviteCodeCourses InviteCodeCourse[]
+  outputs           StudentOutput[]
 
   @@index([slug])
   @@index([status])
@@ -387,8 +399,10 @@ model Lesson {
   materials        CourseMaterial[]
   lessonProgress   LessonProgress[]
   sections         LessonSection[]
-  moduleItem       ModuleItem?
+  moduleItem       ModuleItem?      @relation("LessonModuleItem")
+  inlineItems      ModuleItem[]     @relation("LessonInlineItems")
   transcripts      VideoTranscript[]
+  timestamps       VideoTimestamp[]
 
   @@index([moduleId, order])
   @@map("lessons")
@@ -417,43 +431,51 @@ model CourseMaterial {
 }
 
 model ModuleItem {
-  id         String         @id @default(cuid())
-  moduleId   String
-  type       ModuleItemType
-  order      Int
-  lessonId   String?        @unique
-  quizId     String?        @unique
-  taskId     String?        @unique
-  createdAt  DateTime       @default(now())
-  updatedAt  DateTime       @updatedAt
-  module     Module         @relation(fields: [moduleId], references: [id], onDelete: Cascade)
-  lesson     Lesson?        @relation(fields: [lessonId], references: [id], onDelete: Cascade)
-  quiz       Quiz?          @relation(fields: [quizId], references: [id], onDelete: Cascade)
-  task       ModuleTask?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  progress   ModuleItemProgress[]
+  id              String         @id @default(cuid())
+  moduleId        String
+  type            ModuleItemType
+  order           Int
+  lessonId        String?        @unique
+  quizId          String?        @unique
+  taskId          String?        @unique
+  inlineLessonId  String?        // if set, renders inside that lesson's canvas
+  inlineOrder     Int?           // position within that lesson's content flow
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  module          Module         @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  lesson          Lesson?        @relation("LessonModuleItem", fields: [lessonId], references: [id], onDelete: Cascade)
+  lessonInline    Lesson?        @relation("LessonInlineItems", fields: [inlineLessonId], references: [id])
+  quiz            Quiz?          @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  task            ModuleTask?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  progress        ModuleItemProgress[]
 
   @@unique([moduleId, order])
   @@index([moduleId, type])
+  @@index([inlineLessonId])
   @@map("module_items")
 }
 
 model LessonSection {
-  id           String           @id @default(cuid())
-  lessonId     String
-  headingEn    String
-  headingFil   String?
-  bodyEn       String?          @db.Text
-  bodyFil      String?          @db.Text
-  imageUrl     String?
-  imageFileId  String?
-  imageAltEn   String?
-  imageAltFil  String?
-  order        Int              @default(0)
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
-  deletedAt    DateTime?
-  lesson       Lesson           @relation(fields: [lessonId], references: [id], onDelete: Cascade)
-  materials    CourseMaterial[]
+  id            String           @id @default(cuid())
+  lessonId      String
+  headingEn     String
+  headingFil    String?
+  bodyEn        String?          @db.Text
+  bodyFil       String?          @db.Text
+  imageUrl      String?
+  imageFileId   String?
+  imageAltEn    String?
+  imageAltFil   String?
+  youtubeId     String?
+  mp4Url        String?
+  videoPosition VideoPosition    @default(ABOVE_BODY)
+  order         Int              @default(0)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  deletedAt     DateTime?
+  lesson        Lesson           @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  materials     CourseMaterial[]
+  timestamps    VideoTimestamp[]
 
   @@unique([lessonId, order])
   @@map("lesson_sections")
@@ -478,6 +500,7 @@ model ModuleTask {
   module            Module             @relation(fields: [moduleId], references: [id], onDelete: Cascade)
   submissions       TaskSubmission[]
   moduleItem        ModuleItem?
+  rubricCriteria    TaskRubricCriterion[]
 
   @@index([moduleId])
   @@map("module_tasks")
@@ -500,6 +523,7 @@ model TaskSubmission {
   task            ModuleTask           @relation(fields: [taskId], references: [id], onDelete: Cascade)
   user            User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   reviewedBy      User?                @relation("TaskReviewer", fields: [reviewedById], references: [id])
+  criterionScores TaskCriterionScore[]
 
   @@unique([taskId, userId, attemptNum])
   @@index([taskId, userId])
@@ -519,6 +543,70 @@ model VideoTranscript {
 
   @@unique([lessonId, language])
   @@map("video_transcripts")
+}
+
+model VideoTimestamp {
+  id              String        @id @default(cuid())
+  lessonId        String
+  lessonSectionId String?
+  timestampSecs   Int
+  labelEn         String
+  labelFil        String?
+  noteEn          String?       @db.Text
+  noteFil         String?       @db.Text
+  type            TimestampType @default(CHAPTER)
+  generatedByAi   Boolean       @default(false)
+  order           Int           @default(0)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  lesson          Lesson        @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  lessonSection   LessonSection? @relation(fields: [lessonSectionId], references: [id], onDelete: Cascade)
+
+  @@index([lessonId, timestampSecs])
+  @@index([lessonSectionId])
+  @@map("video_timestamps")
+}
+
+model TaskRubricCriterion {
+  id         String               @id @default(cuid())
+  taskId     String
+  titleEn    String
+  titleFil   String?
+  descEn     String?              @db.Text
+  descFil    String?              @db.Text
+  maxPoints  Int
+  order      Int                  @default(0)
+  createdAt  DateTime             @default(now())
+  updatedAt  DateTime             @updatedAt
+  task       ModuleTask           @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  scores     TaskCriterionScore[]
+
+  @@index([taskId, order])
+  @@map("task_rubric_criteria")
+}
+
+model TaskCriterionScore {
+  id           String              @id @default(cuid())
+  submissionId String
+  criterionId  String
+  score        Int
+  submission   TaskSubmission      @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  criterion    TaskRubricCriterion @relation(fields: [criterionId], references: [id], onDelete: Cascade)
+
+  @@unique([submissionId, criterionId])
+  @@map("task_criterion_scores")
+}
+
+model InviteCodeCourse {
+  id           String     @id @default(cuid())
+  inviteCodeId String
+  courseId     String
+  createdAt    DateTime   @default(now())
+  inviteCode   InviteCode @relation(fields: [inviteCodeId], references: [id], onDelete: Cascade)
+  course       Course     @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([inviteCodeId, courseId])
+  @@map("invite_code_courses")
 }
 
 model ModuleItemProgress {
