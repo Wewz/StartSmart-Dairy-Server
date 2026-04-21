@@ -11,6 +11,12 @@ router.patch("/lessons/:lessonId/timestamps/reorder", authenticate, requireAdmin
 router.post("/lessons/:lessonId/timestamps/generate", authenticate, requireAdmin, timestamp.generateAiTimestamps);
 router.post("/lessons/:lessonId/timestamps/bulk", authenticate, requireAdmin, timestamp.bulkSaveTimestamps);
 
+// Block-scoped (Phase 11+)
+router.get("/blocks/:blockId/timestamps", authenticate, timestamp.listBlockTimestamps);
+router.post("/blocks/:blockId/timestamps", authenticate, requireAdmin, timestamp.createBlockTimestamp);
+router.patch("/blocks/:blockId/timestamps/reorder", authenticate, requireAdmin, timestamp.reorderBlockTimestamps);
+router.post("/blocks/:blockId/timestamps/bulk", authenticate, requireAdmin, timestamp.bulkSaveBlockTimestamps);
+
 // Individual timestamp
 router.patch("/timestamps/:id", authenticate, requireAdmin, timestamp.updateTimestamp);
 router.delete("/timestamps/:id", authenticate, requireAdmin, timestamp.deleteTimestamp);

@@ -22,6 +22,59 @@ export const listTimestamps = async (req: AuthenticatedRequest, res: Response) =
   }
 };
 
+export const listBlockTimestamps = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const timestamps = await timestampService.listByBlock(param(req.params.blockId));
+    return ok(res, timestamps);
+  } catch (err: any) {
+    return serverError(res, err.message);
+  }
+};
+
+export const createBlockTimestamp = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    // Validate the text/label fields only; blockId comes from route.
+    const parsed = createTimestampSchema
+      .omit({ lessonId: true, lessonSectionId: true } as any)
+      .safeParse(req.body);
+    if (!parsed.success) return badRequest(res, parsed.error.message);
+    const ts = await timestampService.createForBlock(param(req.params.blockId), parsed.data as any);
+    return created(res, ts);
+  } catch (err: any) {
+    return badRequest(res, err.message);
+  }
+};
+
+export const reorderBlockTimestamps = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const parsed = reorderTimestampsSchema.safeParse(req.body);
+    if (!parsed.success) return badRequest(res, parsed.error.message);
+    const result = await timestampService.reorderForBlock(
+      param(req.params.blockId),
+      (parsed.data as any).orderedIds,
+    );
+    return ok(res, { reordered: result.length });
+  } catch (err: any) {
+    return badRequest(res, err.message);
+  }
+};
+
+export const bulkSaveBlockTimestamps = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const parsed = bulkSaveTimestampsSchema.safeParse(req.body);
+    if (!parsed.success) return badRequest(res, parsed.error.message);
+    const data = parsed.data as any;
+    const result = await timestampService.bulkSaveForBlock(
+      param(req.params.blockId),
+      data.timestamps,
+      !!data.replacePrevious,
+    );
+    return ok(res, result);
+  } catch (err: any) {
+    return badRequest(res, err.message);
+  }
+};
+
 export const createTimestamp = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const parsed = createTimestampSchema.safeParse({

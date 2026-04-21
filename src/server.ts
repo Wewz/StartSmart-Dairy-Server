@@ -18,6 +18,7 @@ import aiRouter from "./routes/ai.routes";
 import timestampRouter from "./routes/timestamp.routes";
 import taskRubricRouter from "./routes/task-rubric.routes";
 import inviteCodeRouter from "./routes/invite-code.routes";
+import pagesRouter from "./routes/pages.routes";
 import {
   quizRouter,
   progressRouter,
@@ -63,6 +64,7 @@ app.use("/api/admin", adminRouter);
 app.use("/api", timestampRouter);
 app.use("/api", taskRubricRouter);
 app.use("/api/invite-codes", inviteCodeRouter);
+app.use("/api/pages", pagesRouter);
 
 // Health check
 app.get("/api/health", (_req, res) =>

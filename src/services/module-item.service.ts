@@ -133,6 +133,22 @@ class ModuleItemService {
               : undefined,
           },
         },
+        page: {
+          select: {
+            id: true,
+            titleEn: true,
+            titleFil: true,
+            status: true,
+            durationSecs: true,
+            deletedAt: true,
+            progress: userId
+              ? {
+                  where: { userId },
+                  select: { isCompleted: true, completedAt: true },
+                }
+              : undefined,
+          },
+        },
         quiz: {
           select: {
             id: true,
@@ -178,6 +194,11 @@ class ModuleItemService {
       if (item.type === "LESSON") {
         if (!item.lesson || item.lesson.deletedAt) return false;
         if (!isAdmin && item.lesson.status !== "PUBLISHED") return false;
+        return true;
+      }
+      if (item.type === "PAGE") {
+        if (!item.page || item.page.deletedAt) return false;
+        if (!isAdmin && item.page.status !== "PUBLISHED") return false;
         return true;
       }
       if (item.type === "QUIZ") {

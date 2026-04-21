@@ -64,6 +64,7 @@ enum QuizType {
 
 enum ModuleItemType {
   LESSON
+  PAGE
   QUIZ
   TASK
 }
@@ -125,6 +126,33 @@ enum LockReason {
   UNLOCKED
 }
 
+enum PageKind {
+  LESSON
+  COVER
+  RESOURCE
+}
+
+enum BlockType {
+  HEADING
+  PARAGRAPH
+  IMAGE
+  VIDEO
+  FILE
+  DIVIDER
+  CALLOUT
+  TASK_REF
+  QUIZ_REF
+  EMBED
+  // TOGGLE and COLUMNS reserved for v2 — do not implement
+}
+
+enum CalloutStyle {
+  INFO
+  TIP
+  WARNING
+  NOTE
+}
+
 enum NotificationType {
   ENROLLMENT_CONFIRMED
   NEW_CONTENT
@@ -162,6 +190,7 @@ model User {
   otpChallenges    OtpChallenge[]
   enrollments      Enrollment[]
   lessonProgress   LessonProgress[]
+  pageProgress     PageProgress[]
   moduleProgress   ModuleProgress[]
   moduleLockStatus ModuleLockStatus[]
   quizAttempts     QuizAttempt[]
@@ -365,6 +394,7 @@ model Module {
   updatedAt            DateTime           @updatedAt
   course               Course             @relation(fields: [courseId], references: [id], onDelete: Cascade)
   lessons              Lesson[]
+  pages                Page[]
   quizzes              Quiz[]
   moduleItems          ModuleItem[]
   tasks                ModuleTask[]
@@ -436,18 +466,22 @@ model ModuleItem {
   type            ModuleItemType
   order           Int
   lessonId        String?        @unique
+  pageId          String?        @unique
   quizId          String?        @unique
   taskId          String?        @unique
-  inlineLessonId  String?        // if set, renders inside that lesson's canvas
-  inlineOrder     Int?           // position within that lesson's content flow
+  inlineLessonId  String?        // legacy — removed in Phase 14
+  inlineOrder     Int?           // legacy — removed in Phase 14
+  deletedAt       DateTime?
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
   module          Module         @relation(fields: [moduleId], references: [id], onDelete: Cascade)
   lesson          Lesson?        @relation("LessonModuleItem", fields: [lessonId], references: [id], onDelete: Cascade)
+  page            Page?          @relation(fields: [pageId], references: [id], onDelete: Cascade)
   lessonInline    Lesson?        @relation("LessonInlineItems", fields: [inlineLessonId], references: [id])
   quiz            Quiz?          @relation(fields: [quizId], references: [id], onDelete: Cascade)
   task            ModuleTask?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
   progress        ModuleItemProgress[]
+  contentBlock    ContentBlock?
 
   @@unique([moduleId, order])
   @@index([moduleId, type])
@@ -567,8 +601,9 @@ model VideoTranscript {
 
 model VideoTimestamp {
   id              String        @id @default(cuid())
-  lessonId        String
-  lessonSectionId String?
+  lessonId        String?       // legacy — nullable during migration, dropped in Phase 14
+  lessonSectionId String?       // legacy — dropped in Phase 14
+  blockId         String?       // new canonical owner (VIDEO block)
   timestampSecs   Int
   labelEn         String
   labelFil        String?
@@ -579,12 +614,107 @@ model VideoTimestamp {
   order           Int           @default(0)
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
-  lesson          Lesson        @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  lesson          Lesson?       @relation(fields: [lessonId], references: [id], onDelete: Cascade)
   lessonSection   LessonSection? @relation(fields: [lessonSectionId], references: [id], onDelete: Cascade)
+  block           ContentBlock? @relation(fields: [blockId], references: [id], onDelete: Cascade)
 
   @@index([lessonId, timestampSecs])
   @@index([lessonSectionId])
+  @@index([blockId, timestampSecs])
   @@map("video_timestamps")
+}
+
+// ============================================
+// PAGE + BLOCK EDITOR (Phase 11)
+// ============================================
+
+model Page {
+  id              String       @id @default(cuid())
+  moduleId        String
+  kind            PageKind     @default(LESSON)
+  titleEn         String
+  titleFil        String
+  slug            String?
+  bannerUrl       String?
+  bannerFileId    String?
+  durationSecs    Int?
+  status          LessonStatus @default(DRAFT)
+  requiresPrevious Boolean     @default(true)
+  order           Int          @default(0)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  deletedAt       DateTime?
+
+  module          Module       @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  blocks          ContentBlock[]
+  moduleItem      ModuleItem?
+  progress        PageProgress[]
+
+  @@index([moduleId, order])
+  @@map("pages")
+}
+
+model ContentBlock {
+  id            String        @id @default(cuid())
+  pageId        String
+  type          BlockType
+  order         Int
+
+  // Text fields (nullable per type)
+  headingLevel  Int?
+  textEn        String?       @db.Text
+  textFil       String?       @db.Text
+  altEn         String?
+  altFil        String?
+  captionEn     String?
+  captionFil    String?
+
+  // Media
+  imageUrl      String?
+  imageFileId   String?
+  youtubeId     String?
+  mp4Url        String?
+  fileUrl       String?
+  fileId        String?
+  fileType      MaterialType?
+  fileSizeBytes Int?
+  mimeType      String?
+  originalName  String?
+
+  // Refs
+  moduleItemId  String?       @unique
+
+  // Styling
+  calloutStyle  CalloutStyle?
+  embedUrl      String?
+
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  deletedAt     DateTime?
+
+  page          Page          @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  moduleItem    ModuleItem?   @relation(fields: [moduleItemId], references: [id])
+  timestamps    VideoTimestamp[]
+
+  @@index([pageId, order])
+  @@map("content_blocks")
+}
+
+model PageProgress {
+  id              String    @id @default(cuid())
+  userId          String
+  pageId          String
+  scrolledPercent Int       @default(0)
+  scrolledToEnd   Boolean   @default(false)
+  isCompleted     Boolean   @default(false)
+  completedAt     DateTime?
+  updatedAt       DateTime  @updatedAt
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  page            Page      @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, pageId])
+  @@index([pageId])
+  @@map("page_progress")
 }
 
 model TaskRubricCriterion {

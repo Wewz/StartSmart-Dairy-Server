@@ -21,6 +21,78 @@ export class TimestampService {
     });
   }
 
+  async listByBlock(blockId: string) {
+    return prisma.videoTimestamp.findMany({
+      where: { blockId },
+      orderBy: [{ timestampSecs: "asc" }],
+    });
+  }
+
+  async createForBlock(
+    blockId: string,
+    dto: Omit<CreateTimestampDto, "lessonId" | "lessonSectionId"> & {
+      lessonId?: never;
+      lessonSectionId?: never;
+    },
+  ) {
+    const block = await prisma.contentBlock.findFirst({
+      where: { id: blockId, deletedAt: null },
+      select: { id: true, type: true },
+    });
+    if (!block) throw new Error("Block not found");
+    if (block.type !== "VIDEO")
+      throw new Error("Timestamps can only be attached to VIDEO blocks");
+    return prisma.videoTimestamp.create({
+      data: { ...dto, blockId, lessonId: null },
+    });
+  }
+
+  async reorderForBlock(blockId: string, orderedIds: string[]) {
+    const updates = orderedIds.map((id, index) =>
+      prisma.videoTimestamp.update({ where: { id }, data: { order: index } }),
+    );
+    return prisma.$transaction(updates);
+  }
+
+  async bulkSaveForBlock(
+    blockId: string,
+    timestamps: BulkTimestampItem[],
+    replacePrevious: boolean,
+  ) {
+    const block = await prisma.contentBlock.findFirst({
+      where: { id: blockId, deletedAt: null },
+      select: { id: true, type: true },
+    });
+    if (!block) throw new Error("Block not found");
+    if (block.type !== "VIDEO")
+      throw new Error("Timestamps can only be attached to VIDEO blocks");
+
+    return prisma.$transaction(async (tx) => {
+      if (replacePrevious) {
+        await tx.videoTimestamp.deleteMany({
+          where: { blockId, generatedByAi: true },
+        });
+      }
+      return Promise.all(
+        timestamps.map((ts, index) =>
+          tx.videoTimestamp.create({
+            data: {
+              blockId,
+              timestampSecs: ts.timestampSecs,
+              labelEn: ts.labelEn,
+              labelFil: ts.labelFil,
+              noteEn: ts.noteEn,
+              noteFil: ts.noteFil,
+              type: ts.type,
+              generatedByAi: ts.generatedByAi ?? false,
+              order: ts.order ?? index,
+            },
+          }),
+        ),
+      );
+    });
+  }
+
   async create(dto: CreateTimestampDto) {
     return prisma.videoTimestamp.create({ data: dto });
   }
