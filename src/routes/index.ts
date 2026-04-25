@@ -5,6 +5,9 @@ import * as discussion from "@/controllers/discussion.controller";
 import * as output from "@/controllers/output.controller";
 import * as notification from "@/controllers/notification.controller";
 import * as admin from "@/controllers/admin.controller";
+import * as activity from "@/controllers/activity.controller";
+import * as certificate from "@/controllers/certificate.controller";
+import * as studentNote from "@/controllers/student-note.controller";
 import { validateRequest } from "@/middleware/validate.middleware";
 import {
   createQuizSchema,
@@ -168,3 +171,23 @@ adminRouter.get(
   requireAdmin,
   admin.listEnrollments,
 );
+
+// ─── Activity & Stats routes ──────────────────────────────────────
+export const activityRouter = Router();
+activityRouter.post("/log", authenticate, activity.logActivity);
+activityRouter.get("/stats", authenticate, activity.getMyStats);
+activityRouter.get("/heatmap", authenticate, activity.getMyHeatmap);
+
+// ─── Certificate routes ───────────────────────────────────────────
+export const certificateRouter = Router();
+certificateRouter.get("/", authenticate, certificate.getMyCertificates);
+certificateRouter.get("/verify/:verificationId", certificate.verifyCertificate);
+certificateRouter.get("/:id", authenticate, certificate.getCertificate);
+certificateRouter.post("/generate", authenticate, certificate.generateCertificate);
+
+// ─── Student Notes routes ─────────────────────────────────────────
+export const studentNoteRouter = Router();
+studentNoteRouter.get("/lessons/:lessonId", authenticate, studentNote.getNotes);
+studentNoteRouter.post("/lessons/:lessonId", authenticate, studentNote.createNote);
+studentNoteRouter.put("/:noteId", authenticate, studentNote.updateNote);
+studentNoteRouter.delete("/:noteId", authenticate, studentNote.deleteNote);

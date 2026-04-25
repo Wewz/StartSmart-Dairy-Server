@@ -27,6 +27,9 @@ import {
   notificationRouter,
   gradingRouter,
   adminRouter,
+  activityRouter,
+  certificateRouter,
+  studentNoteRouter,
 } from "./routes";
 import { errorHandler, notFoundHandler } from "./middleware/error.middleware";
 
@@ -65,6 +68,9 @@ app.use("/api", timestampRouter);
 app.use("/api", taskRubricRouter);
 app.use("/api/invite-codes", inviteCodeRouter);
 app.use("/api/pages", pagesRouter);
+app.use("/api/activity", activityRouter);
+app.use("/api/certificates", certificateRouter);
+app.use("/api/notes", studentNoteRouter);
 
 // Health check
 app.get("/api/health", (_req, res) =>

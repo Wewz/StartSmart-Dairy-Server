@@ -74,6 +74,7 @@ enum QuestionType {
   TRUE_FALSE
   SHORT_ANSWER
   ESSAY
+  CHECKLIST
 }
 
 enum TaskType {
@@ -162,6 +163,10 @@ enum NotificationType {
   OUTPUT_REVIEWED
   NEW_DEVICE_LOGIN
   MODULE_UNLOCKED
+  SUBMISSION_GRADED
+  TRAINER_FEEDBACK
+  DEADLINE_REMINDER
+  ACHIEVEMENT
 }
 
 // ============================================
@@ -180,6 +185,12 @@ model User {
   region        Region?
   phoneNumber   String?
   isActive      Boolean   @default(true)
+  currentStreak  Int      @default(0)
+  longestStreak  Int      @default(0)
+  lastActiveDate DateTime?
+  xp             Int      @default(0)
+  level          Int      @default(1)
+  totalMinutes   Float    @default(0)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -204,6 +215,9 @@ model User {
   taskSubmissions  TaskSubmission[]
   taskReviews      TaskSubmission[]   @relation("TaskReviewer")
   itemProgress     ModuleItemProgress[]
+  dailyActivities  DailyActivity[]
+  certificates     Certificate[]
+  studentNotes     StudentNote[]
 
   @@map("users")
 }
@@ -368,6 +382,7 @@ model Course {
   enrollments       Enrollment[]
   inviteCodeCourses InviteCodeCourse[]
   outputs           StudentOutput[]
+  certificates      Certificate[]
 
   @@index([slug])
   @@index([status])
@@ -433,6 +448,7 @@ model Lesson {
   inlineItems      ModuleItem[]     @relation("LessonInlineItems")
   transcripts      VideoTranscript[]
   timestamps       VideoTimestamp[]
+  studentNotes     StudentNote[]
 
   @@index([moduleId, order])
   @@map("lessons")
@@ -868,6 +884,9 @@ model Question {
   rubricEn     String?      @db.Text
   rubricFil    String?      @db.Text
   maxScore     Int?
+  explanationEn String?     @db.Text
+  explanationFil String?    @db.Text
+  timeLimitSecs Int?
   order     Int             @default(0)
   points    Int             @default(1)
   createdAt DateTime        @default(now())
@@ -1005,4 +1024,48 @@ model Notification {
 
   @@index([userId, isRead])
   @@map("notifications")
+}
+
+model DailyActivity {
+  id            String   @id @default(cuid())
+  userId        String
+  date          DateTime @db.Date
+  actions       Int      @default(1)
+  minutesActive Int      @default(0)
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([userId])
+  @@map("daily_activities")
+}
+
+model Certificate {
+  id             String   @id @default(cuid())
+  userId         String
+  courseId        String
+  issuedAt       DateTime @default(now())
+  score          Float
+  verificationId String   @unique
+  pdfUrl         String?
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course         Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, courseId])
+  @@index([verificationId])
+  @@map("certificates")
+}
+
+model StudentNote {
+  id          String   @id @default(cuid())
+  userId      String
+  lessonId    String
+  timestampMs Int
+  text        String   @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lesson      Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@index([userId, lessonId])
+  @@map("student_notes")
 }

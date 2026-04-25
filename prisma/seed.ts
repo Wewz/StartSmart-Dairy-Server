@@ -48,11 +48,15 @@ async function main() {
 
   await seedCourse1(adminId)
   await seedCourse2(adminId)
+  await seedCourse3(adminId)
+  await seedCourse4(adminId)
 
   console.log('\n✅ Seeding complete.')
   console.log('   Invite codes:')
   console.log('   • DAIRY-INTRO-2025  → Introduction to Dairy Farming')
   console.log('   • DAIRY-HEALTH-2025 → Dairy Cattle Health Management')
+  console.log('   • DAIRY-NUTRI-2025  → Dairy Cattle Nutrition & Feeding')
+  console.log('   • DAIRY-BIZ-2025    → Dairy Farm Business Management')
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1250,6 +1254,612 @@ async function seedDiseasePostTestQuestions(quizId: string) {
     },
   ]
   await upsertQuestionsWithOptions(questions)
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// COURSE 3 — Dairy Cattle Nutrition & Feeding
+// ═══════════════════════════════════════════════════════════════════════════════
+
+async function seedCourse3(adminId: string) {
+  console.log('\n📚 Course 3: Dairy Cattle Nutrition & Feeding')
+
+  const course = await prisma.course.upsert({
+    where: { slug: 'dairy-cattle-nutrition-feeding' },
+    update: {},
+    create: {
+      slug: 'dairy-cattle-nutrition-feeding',
+      titleEn: 'Dairy Cattle Nutrition & Feeding',
+      titleFil: 'Nutrisyon at Pagpapakain ng Baka ng Gatas',
+      descriptionEn: '<p>Master the fundamentals of dairy cattle nutrition. Learn about forage management, concentrate feeding, water requirements, and how to formulate balanced rations that maximize milk production while keeping your herd healthy and costs manageable.</p>',
+      descriptionFil: '<p>Aralin ang mga pangunahing konsepto ng nutrisyon ng baka ng gatas. Matuto tungkol sa pamamahala ng damo, pagpapakain ng konsentrado, mga kinakailangang tubig, at kung paano gumawa ng balanseng rasyon na nagpapakinabang sa produksyon ng gatas habang pinapanatiling malusog ang inyong kawan at kontrolado ang gastos.</p>',
+      status: CourseStatus.PUBLISHED,
+      isInviteOnly: true,
+      order: 3,
+      createdById: adminId,
+    },
+  })
+  console.log(`  ✓ Course: ${course.titleEn}`)
+
+  const inviteCode = await prisma.inviteCode.upsert({
+    where: { code: 'DAIRY-NUTRI-2025' },
+    update: {},
+    create: {
+      code: 'DAIRY-NUTRI-2025',
+      createdById: adminId,
+      usageLimit: 100,
+      isActive: true,
+      note: 'Demo invite code for Nutrition course',
+    },
+  })
+  await prisma.inviteCodeCourse.upsert({
+    where: { inviteCodeId_courseId: { inviteCodeId: inviteCode.id, courseId: course.id } },
+    update: {},
+    create: { inviteCodeId: inviteCode.id, courseId: course.id },
+  })
+  console.log(`  ✓ Invite code: DAIRY-NUTRI-2025`)
+
+  await seedCourse3Module1(course.id, adminId)
+  await seedCourse3Module2(course.id, adminId)
+}
+
+async function seedCourse3Module1(courseId: string, adminId: string) {
+  console.log('  📦 Module 1: Fundamentals of Ruminant Nutrition')
+
+  const module = await prisma.module.upsert({
+    where: { id: 'seed-c3-m1' },
+    update: {},
+    create: {
+      id: 'seed-c3-m1',
+      courseId,
+      titleEn: 'Fundamentals of Ruminant Nutrition',
+      titleFil: 'Mga Pangunahing Prinsipyo ng Nutrisyon ng Ruminante',
+      descriptionEn: '<p>Understand how the ruminant digestive system works and the six essential nutrient classes required by dairy cattle for maintenance, growth, and milk production.</p>',
+      descriptionFil: '<p>Alamin kung paano gumagana ang digestive system ng ruminante at ang anim na mahahalagang uri ng sustansya na kailangan ng baka ng gatas para sa pagpapanatili, paglaki, at produksyon ng gatas.</p>',
+      order: 1,
+      requiresPreTest: true,
+      requiresAllLessons: true,
+      requiresPostTest: true,
+      passingScoreToUnlock: 70,
+    },
+  })
+
+  const preTest = await upsertQuiz({
+    id: 'seed-c3-m1-pre', moduleId: module.id,
+    titleEn: 'Pre-Test: Ruminant Nutrition Basics',
+    titleFil: 'Pre-Test: Mga Batayan ng Nutrisyon ng Ruminante',
+    type: QuizType.PRE_TEST, passingScore: 60, maxAttempts: 2, order: 1,
+  })
+  await upsertQuestionsWithOptions([
+    { id: `${preTest.id}-q1`, order: 1, textEn: 'How many compartments does a ruminant stomach have?', textFil: 'Ilan ang kompartimento ng tiyan ng ruminante?', questionType: QuestionType.MULTIPLE_CHOICE, points: 1,
+      options: [
+        { id: `${preTest.id}-q1-a`, textEn: '2', textFil: '2', isCorrect: false, order: 1 },
+        { id: `${preTest.id}-q1-b`, textEn: '3', textFil: '3', isCorrect: false, order: 2 },
+        { id: `${preTest.id}-q1-c`, textEn: '4', textFil: '4', isCorrect: true, order: 3 },
+        { id: `${preTest.id}-q1-d`, textEn: '5', textFil: '5', isCorrect: false, order: 4 },
+      ],
+    },
+    { id: `${preTest.id}-q2`, order: 2, textEn: 'What is the largest compartment of a cow\'s stomach?', textFil: 'Ano ang pinakamalaking kompartimento ng tiyan ng baka?', questionType: QuestionType.MULTIPLE_CHOICE, points: 1,
+      options: [
+        { id: `${preTest.id}-q2-a`, textEn: 'Abomasum', textFil: 'Abomasum', isCorrect: false, order: 1 },
+        { id: `${preTest.id}-q2-b`, textEn: 'Rumen', textFil: 'Rumen', isCorrect: true, order: 2 },
+        { id: `${preTest.id}-q2-c`, textEn: 'Omasum', textFil: 'Omasum', isCorrect: false, order: 3 },
+        { id: `${preTest.id}-q2-d`, textEn: 'Reticulum', textFil: 'Reticulum', isCorrect: false, order: 4 },
+      ],
+    },
+    { id: `${preTest.id}-q3`, order: 3, textEn: 'True or False: Dairy cows can survive on grass alone without any concentrate feed.', textFil: 'Totoo o Hindi: Ang mga baka ng gatas ay maaaring mabuhay sa damo lamang nang walang konsentradong pagkain.', questionType: QuestionType.TRUE_FALSE, points: 1,
+      options: [
+        { id: `${preTest.id}-q3-a`, textEn: 'True', textFil: 'Totoo', isCorrect: false, order: 1 },
+        { id: `${preTest.id}-q3-b`, textEn: 'False', textFil: 'Hindi Totoo', isCorrect: true, order: 2 },
+      ],
+    },
+    { id: `${preTest.id}-q4`, order: 4, textEn: 'Which nutrient class provides the most energy to dairy cattle?', textFil: 'Aling uri ng sustansya ang nagbibigay ng pinakamaraming enerhiya sa baka ng gatas?', questionType: QuestionType.MULTIPLE_CHOICE, points: 1,
+      options: [
+        { id: `${preTest.id}-q4-a`, textEn: 'Protein', textFil: 'Protina', isCorrect: false, order: 1 },
+        { id: `${preTest.id}-q4-b`, textEn: 'Carbohydrates', textFil: 'Karbohidrato', isCorrect: true, order: 2 },
+        { id: `${preTest.id}-q4-c`, textEn: 'Vitamins', textFil: 'Bitamina', isCorrect: false, order: 3 },
+        { id: `${preTest.id}-q4-d`, textEn: 'Minerals', textFil: 'Mineral', isCorrect: false, order: 4 },
+      ],
+    },
+    { id: `${preTest.id}-q5`, order: 5, textEn: 'What percentage of a dairy cow\'s body weight is water?', textFil: 'Ilang porsyento ng bigat ng katawan ng baka ang tubig?', questionType: QuestionType.MULTIPLE_CHOICE, points: 1,
+      options: [
+        { id: `${preTest.id}-q5-a`, textEn: '30-40%', textFil: '30-40%', isCorrect: false, order: 1 },
+        { id: `${preTest.id}-q5-b`, textEn: '50-60%', textFil: '50-60%', isCorrect: false, order: 2 },
+        { id: `${preTest.id}-q5-c`, textEn: '60-70%', textFil: '60-70%', isCorrect: true, order: 3 },
+        { id: `${preTest.id}-q5-d`, textEn: '80-90%', textFil: '80-90%', isCorrect: false, order: 4 },
+      ],
+    },
+  ])
+  console.log('    ✓ Pre-test')
+
+  const lesson1 = await upsertLesson({
+    id: 'seed-c3-m1-l1', moduleId: module.id,
+    titleEn: 'The Ruminant Digestive System',
+    titleFil: 'Ang Digestive System ng Ruminante',
+    bodyEn: '<h2>Understanding Ruminant Digestion</h2><p>Dairy cattle are ruminants, meaning they have a specialized four-compartment stomach system designed to break down fibrous plant materials. The four compartments — rumen, reticulum, omasum, and abomasum — each play a unique role in digesting feed and extracting nutrients.</p><p>The rumen is the largest compartment, capable of holding up to 150 liters of partially digested feed. It functions as a massive fermentation vat where billions of microorganisms break down cellulose and other complex carbohydrates into volatile fatty acids (VFAs), which serve as the cow\'s primary energy source.</p>',
+    bodyFil: '<h2>Pag-unawa sa Digestive System ng Ruminante</h2><p>Ang mga baka ng gatas ay ruminante, ibig sabihin mayroon silang espesyalisadong apat na kompartimento na tiyan na dinisenyo upang sirain ang mga fibrous na materyal ng halaman. Ang apat na kompartimento — rumen, reticulum, omasum, at abomasum — bawat isa ay may natatanging papel sa pagdidigest ng pagkain at pag-extract ng sustansya.</p><p>Ang rumen ang pinakamalaking kompartimento, kayang maglaman ng hanggang 150 litro ng partially digested na pagkain. Ito ay gumagana bilang isang malaking fermentation vat kung saan bilyun-bilyong mga microorganism ang sumisira ng cellulose at iba pang kumplikadong karbohidrato upang gawing volatile fatty acids (VFAs), na nagsisilbing pangunahing pinagmumulan ng enerhiya ng baka.</p>',
+    youtubeId: 'dQw4w9WgXcQ', durationSecs: 1080, status: LessonStatus.PUBLISHED, order: 2,
+  })
+  console.log('    ✓ Lesson 1: Ruminant Digestive System')
+
+  const lesson2 = await upsertLesson({
+    id: 'seed-c3-m1-l2', moduleId: module.id,
+    titleEn: 'The Six Essential Nutrient Classes',
+    titleFil: 'Ang Anim na Mahahalagang Uri ng Sustansya',
+    bodyEn: '<h2>Nutrient Requirements</h2><p>Dairy cattle require six essential classes of nutrients: water, carbohydrates, proteins, fats, vitamins, and minerals. Each plays a critical role in maintaining health, supporting growth, and enabling milk production.</p><p>Water is the most important nutrient — a lactating dairy cow can drink 80-150 liters per day, depending on milk yield and ambient temperature. Clean, fresh water must be available at all times, as even mild dehydration can significantly reduce milk output.</p>',
+    bodyFil: '<h2>Mga Kinakailangang Sustansya</h2><p>Ang mga baka ng gatas ay nangangailangan ng anim na mahahalagang uri ng sustansya: tubig, karbohidrato, protina, taba, bitamina, at mineral. Bawat isa ay may mahalagang papel sa pagpapanatili ng kalusugan, suporta sa paglaki, at pagpapagana ng produksyon ng gatas.</p><p>Ang tubig ang pinakamahalagang sustansya — ang isang lactating na baka ay maaaring uminom ng 80-150 litro bawat araw, depende sa dami ng gatas at temperatura ng paligid. Ang malinis at sariwang tubig ay dapat laging available, dahil kahit bahagyang dehydration ay maaaring malaking bawas sa produksyon ng gatas.</p>',
+    durationSecs: 960, status: LessonStatus.PUBLISHED, order: 3,
+  })
+  console.log('    ✓ Lesson 2: Essential Nutrient Classes')
+
+  const task = await upsertTask({
+    id: 'seed-c3-m1-t1', moduleId: module.id,
+    titleEn: 'Activity: Feed Ingredient Identification',
+    titleFil: 'Aktibidad: Pagkilala ng mga Sangkap ng Pagkain',
+    descriptionEn: '<p>Visit a local feed supplier or agricultural cooperative in your area. List at least 5 different feed ingredients available and classify each as either a roughage or concentrate. For each ingredient, note the price per kilogram and any nutritional information provided on the label. Submit your findings in a table format with photos if possible.</p>',
+    descriptionFil: '<p>Bumisita sa isang lokal na feed supplier o agricultural cooperative sa inyong lugar. Ilista ang hindi bababa sa 5 iba\'t ibang sangkap ng pagkain na available at uriin ang bawat isa bilang roughage o concentrate. Para sa bawat sangkap, itala ang presyo bawat kilo at anumang impormasyon ng nutrisyon na nakasulat sa label. Isumite ang inyong mga natuklasan sa format ng talahanayan na may mga larawan kung maaari.</p>',
+    taskType: TaskType.ACTIVITY, maxScore: 25, isRequired: true, order: 4,
+  })
+  console.log('    ✓ Task: Feed Ingredient Identification')
+
+  const postTest = await upsertQuiz({
+    id: 'seed-c3-m1-post', moduleId: module.id,
+    titleEn: 'Post-Test: Ruminant Nutrition Basics',
+    titleFil: 'Post-Test: Mga Batayan ng Nutrisyon ng Ruminante',
+    type: QuizType.POST_TEST, passingScore: 70, maxAttempts: 3, order: 5,
+  })
+  await upsertQuestionsWithOptions([
+    { id: `${postTest.id}-q1`, order: 1, textEn: 'The volatile fatty acids produced in the rumen provide approximately what percentage of a dairy cow\'s energy needs?', textFil: 'Ang volatile fatty acids na ginagawa sa rumen ay nagbibigay ng humigit-kumulang ilang porsyento ng pangangailangan ng enerhiya ng baka?', questionType: QuestionType.MULTIPLE_CHOICE, points: 1,
+      options: [
+        { id: `${postTest.id}-q1-a`, textEn: '30-40%', textFil: '30-40%', isCorrect: false, order: 1 },
+        { id: `${postTest.id}-q1-b`, textEn: '50-60%', textFil: '50-60%', isCorrect: false, order: 2 },
+        { id: `${postTest.id}-q1-c`, textEn: '70-80%', textFil: '70-80%', isCorrect: true, order: 3 },
+        { id: `${postTest.id}-q1-d`, textEn: '90-100%', textFil: '90-100%', isCorrect: false, order: 4 },
+      ],
+    },
+    { id: `${postTest.id}-q2`, order: 2, textEn: 'Which compartment of the ruminant stomach is known as the "true stomach" because it functions most like a non-ruminant stomach?', textFil: 'Aling kompartimento ng tiyan ng ruminante ang kilala bilang "true stomach" dahil ito ay gumagana katulad ng tiyan ng non-ruminante?', questionType: QuestionType.MULTIPLE_CHOICE, points: 1,
+      options: [
+        { id: `${postTest.id}-q2-a`, textEn: 'Rumen', textFil: 'Rumen', isCorrect: false, order: 1 },
+        { id: `${postTest.id}-q2-b`, textEn: 'Reticulum', textFil: 'Reticulum', isCorrect: false, order: 2 },
+        { id: `${postTest.id}-q2-c`, textEn: 'Omasum', textFil: 'Omasum', isCorrect: false, order: 3 },
+        { id: `${postTest.id}-q2-d`, textEn: 'Abomasum', textFil: 'Abomasum', isCorrect: true, order: 4 },
+      ],
+    },
+    { id: `${postTest.id}-q3`, order: 3, textEn: 'True or False: Protein is the most expensive nutrient in a dairy cow\'s ration.', textFil: 'Totoo o Hindi: Ang protina ang pinakamahal na sustansya sa rasyon ng baka ng gatas.', questionType: QuestionType.TRUE_FALSE, points: 1,
+      options: [
+        { id: `${postTest.id}-q3-a`, textEn: 'True', textFil: 'Totoo', isCorrect: true, order: 1 },
+        { id: `${postTest.id}-q3-b`, textEn: 'False', textFil: 'Hindi Totoo', isCorrect: false, order: 2 },
+      ],
+    },
+    { id: `${postTest.id}-q4`, order: 4, textEn: 'A high-producing dairy cow drinking 120 liters of water per day is most likely producing how many liters of milk?', textFil: 'Ang isang high-producing na baka na umiinom ng 120 litro ng tubig bawat araw ay malamang na gumagawa ng ilang litro ng gatas?', questionType: QuestionType.MULTIPLE_CHOICE, points: 1,
+      options: [
+        { id: `${postTest.id}-q4-a`, textEn: '10-15 liters', textFil: '10-15 litro', isCorrect: false, order: 1 },
+        { id: `${postTest.id}-q4-b`, textEn: '20-30 liters', textFil: '20-30 litro', isCorrect: true, order: 2 },
+        { id: `${postTest.id}-q4-c`, textEn: '40-50 liters', textFil: '40-50 litro', isCorrect: false, order: 3 },
+        { id: `${postTest.id}-q4-d`, textEn: '60-70 liters', textFil: '60-70 litro', isCorrect: false, order: 4 },
+      ],
+    },
+    { id: `${postTest.id}-q5`, order: 5, textEn: 'Explain why the forage-to-concentrate ratio is important in formulating a dairy cow ration. What happens if too much concentrate is fed?', textFil: 'Ipaliwanag kung bakit mahalaga ang ratio ng damo-sa-konsentrado sa paggawa ng rasyon ng baka ng gatas. Ano ang mangyayari kung sobrang konsentrado ang ipinakain?', questionType: QuestionType.ESSAY, points: 10,
+      rubricEn: 'Full marks for explaining: forage maintains rumen health and butterfat levels; excess concentrate causes acidosis, laminitis, and displaced abomasum; ideal ratio is 60:40 to 50:50 for most dairy cows.',
+      rubricFil: 'Buong marka para sa pagpapaliwanag ng: ang damo ay nagpapanatili ng kalusugan ng rumen at antas ng butterfat; ang sobrang konsentrado ay nagdudulot ng acidosis, laminitis, at displaced abomasum; ang ideal na ratio ay 60:40 hanggang 50:50 para sa karamihan ng mga baka ng gatas.',
+    },
+  ])
+  console.log('    ✓ Post-test')
+
+  await upsertModuleItems(module.id, [
+    { id: 'seed-mi-c3m1-pre', type: ModuleItemType.QUIZ, quizId: preTest.id, order: 1 },
+    { id: 'seed-mi-c3m1-l1', type: ModuleItemType.LESSON, lessonId: lesson1.id, order: 2 },
+    { id: 'seed-mi-c3m1-l2', type: ModuleItemType.LESSON, lessonId: lesson2.id, order: 3 },
+    { id: 'seed-mi-c3m1-t1', type: ModuleItemType.TASK, taskId: task.id, order: 4 },
+    { id: 'seed-mi-c3m1-post', type: ModuleItemType.QUIZ, quizId: postTest.id, order: 5 },
+  ])
+  console.log('    ✓ Module flow wired')
+}
+
+async function seedCourse3Module2(courseId: string, adminId: string) {
+  console.log('  📦 Module 2: Forage Management & Feeding Strategies')
+
+  const module = await prisma.module.upsert({
+    where: { id: 'seed-c3-m2' },
+    update: {},
+    create: {
+      id: 'seed-c3-m2',
+      courseId,
+      titleEn: 'Forage Management & Feeding Strategies',
+      titleFil: 'Pamamahala ng Damo at mga Estratehiya sa Pagpapakain',
+      descriptionEn: '<p>Learn to identify, grow, and manage tropical forage crops suited to Philippine conditions. Understand silage making, hay production, and practical feeding schedules for smallholder dairy farms.</p>',
+      descriptionFil: '<p>Matutong kilalanin, itanim, at pamahalaan ang mga tropikal na pananim ng damo na angkop sa kondisyon ng Pilipinas. Alamin ang paggawa ng silage, produksyon ng hay, at praktikal na iskedyul ng pagpapakain para sa maliliit na sakahan ng gatas.</p>',
+      order: 2,
+      requiresPreTest: false,
+      requiresAllLessons: true,
+      requiresPostTest: true,
+      passingScoreToUnlock: 70,
+    },
+  })
+
+  const lesson1 = await upsertLesson({
+    id: 'seed-c3-m2-l1', moduleId: module.id,
+    titleEn: 'Tropical Forages for Dairy Cattle',
+    titleFil: 'Mga Tropikal na Damo para sa Baka ng Gatas',
+    bodyEn: '<h2>Best Forage Crops for Philippine Conditions</h2><p>The Philippines\' tropical climate supports a variety of excellent forage grasses and legumes. Napier grass (Pennisetum purpureum) is the most popular choice among Filipino dairy farmers due to its high biomass yield — up to 400 tons of green matter per hectare per year under optimal conditions.</p><p>Other top performing forages include Guinea grass (Panicum maximum), Para grass (Brachiaria mutica), and the legume Leucaena leucocephala (ipil-ipil), which provides both high-quality protein and natural nitrogen fixation for soil improvement.</p>',
+    bodyFil: '<h2>Pinakamahusay na Pananim ng Damo para sa Kondisyon ng Pilipinas</h2><p>Ang tropikal na klima ng Pilipinas ay sumusuporta sa iba\'t ibang mahusay na damo at leguminous na pananim. Ang Napier grass (Pennisetum purpureum) ang pinakasikat na pagpipilian ng mga Filipino dairy farmer dahil sa mataas na biomass yield nito — hanggang 400 tonelada ng green matter bawat ektarya bawat taon sa optimal na kondisyon.</p><p>Ang iba pang top performing na damo ay kinabibilangan ng Guinea grass (Panicum maximum), Para grass (Brachiaria mutica), at ang leguminous na Leucaena leucocephala (ipil-ipil), na nagbibigay ng mataas na kalidad na protina at natural na nitrogen fixation para sa pagpapabuti ng lupa.</p>',
+    youtubeId: 'dQw4w9WgXcQ', durationSecs: 840, status: LessonStatus.PUBLISHED, order: 1,
+  })
+  console.log('    ✓ Lesson 1: Tropical Forages')
+
+  const lesson2 = await upsertLesson({
+    id: 'seed-c3-m2-l2', moduleId: module.id,
+    titleEn: 'Silage Making and Feed Preservation',
+    titleFil: 'Paggawa ng Silage at Pag-preserve ng Pagkain',
+    bodyEn: '<h2>Why Silage Matters</h2><p>During the dry season, fresh forage becomes scarce. Silage — fermented, high-moisture stored fodder — allows farmers to preserve excess forage from the wet season for use during lean months. Proper silage making can preserve up to 90% of the nutritional value of fresh forage.</p><p>The key to good silage is creating an anaerobic (oxygen-free) environment where lactic acid bacteria can ferment the plant sugars, lowering the pH to around 4.0, which prevents spoilage. In the Philippines, farmers commonly use plastic bag silage or pit silage methods suited to small-scale operations.</p>',
+    bodyFil: '<h2>Bakit Mahalaga ang Silage</h2><p>Sa panahon ng tag-init, ang sariwang damo ay nagiging kapos. Ang silage — fermented, high-moisture stored fodder — ay nagpapahintulot sa mga magsasaka na mag-preserve ng sobrang damo mula sa tag-ulan para sa paggamit sa mga buwan na kapos. Ang wastong paggawa ng silage ay maaaring mag-preserve ng hanggang 90% ng nutritional value ng sariwang damo.</p><p>Ang susi sa magandang silage ay ang paglikha ng anaerobic (walang oxygen) na kapaligiran kung saan ang lactic acid bacteria ay maaaring i-ferment ang mga plant sugars, binababa ang pH sa humigit-kumulang 4.0, na pumipigil sa pagkasira. Sa Pilipinas, karaniwang gumagamit ang mga magsasaka ng plastic bag silage o pit silage na mga pamamaraan na angkop sa maliit na operasyon.</p>',
+    durationSecs: 780, status: LessonStatus.PUBLISHED, order: 2,
+  })
+  console.log('    ✓ Lesson 2: Silage Making')
+
+  const task = await upsertTask({
+    id: 'seed-c3-m2-t1', moduleId: module.id,
+    titleEn: 'Output: Design a 7-Day Feeding Schedule',
+    titleFil: 'Output: Gumawa ng 7-Araw na Iskedyul ng Pagpapakain',
+    descriptionEn: '<p>Based on what you have learned, design a complete 7-day feeding schedule for a small dairy farm with 5 lactating cows. Include: (1) types and amounts of forage per feeding, (2) concentrate supplements and timing, (3) water provision plan, (4) estimated daily cost per cow. Use locally available feed ingredients and current market prices in your area.</p>',
+    descriptionFil: '<p>Batay sa inyong natutunan, gumawa ng kumpletong 7-araw na iskedyul ng pagpapakain para sa isang maliit na sakahan ng gatas na may 5 lactating na baka. Isama ang: (1) mga uri at dami ng damo bawat pagpapakain, (2) mga concentrate supplement at timing, (3) plano sa pagbibigay ng tubig, (4) tinatayang gastos bawat araw bawat baka. Gumamit ng mga locally available na sangkap ng pagkain at kasalukuyang presyo sa inyong lugar.</p>',
+    taskType: TaskType.OUTPUT_SUBMISSION, maxScore: 30, isRequired: true, order: 3,
+  })
+  console.log('    ✓ Task: 7-Day Feeding Schedule')
+
+  const postTest = await upsertQuiz({
+    id: 'seed-c3-m2-post', moduleId: module.id,
+    titleEn: 'Post-Test: Forage Management',
+    titleFil: 'Post-Test: Pamamahala ng Damo',
+    type: QuizType.POST_TEST, passingScore: 70, maxAttempts: 3, order: 4,
+  })
+  await upsertQuestionsWithOptions([
+    { id: `${postTest.id}-q1`, order: 1, textEn: 'Which tropical grass has the highest biomass yield per hectare in the Philippines?', textFil: 'Aling tropikal na damo ang may pinakamataas na biomass yield bawat ektarya sa Pilipinas?', questionType: QuestionType.MULTIPLE_CHOICE, points: 1,
+      options: [
+        { id: `${postTest.id}-q1-a`, textEn: 'Guinea grass', textFil: 'Guinea grass', isCorrect: false, order: 1 },
+        { id: `${postTest.id}-q1-b`, textEn: 'Napier grass', textFil: 'Napier grass', isCorrect: true, order: 2 },
+        { id: `${postTest.id}-q1-c`, textEn: 'Para grass', textFil: 'Para grass', isCorrect: false, order: 3 },
+        { id: `${postTest.id}-q1-d`, textEn: 'Carabao grass', textFil: 'Carabao grass', isCorrect: false, order: 4 },
+      ],
+    },
+    { id: `${postTest.id}-q2`, order: 2, textEn: 'What is the ideal pH level for well-preserved silage?', textFil: 'Ano ang ideal na antas ng pH para sa maayos na preserved na silage?', questionType: QuestionType.MULTIPLE_CHOICE, points: 1,
+      options: [
+        { id: `${postTest.id}-q2-a`, textEn: 'Around 2.0', textFil: 'Humigit-kumulang 2.0', isCorrect: false, order: 1 },
+        { id: `${postTest.id}-q2-b`, textEn: 'Around 4.0', textFil: 'Humigit-kumulang 4.0', isCorrect: true, order: 2 },
+        { id: `${postTest.id}-q2-c`, textEn: 'Around 6.0', textFil: 'Humigit-kumulang 6.0', isCorrect: false, order: 3 },
+        { id: `${postTest.id}-q2-d`, textEn: 'Around 7.0', textFil: 'Humigit-kumulang 7.0', isCorrect: false, order: 4 },
+      ],
+    },
+    { id: `${postTest.id}-q3`, order: 3, textEn: 'True or False: Leucaena leucocephala (ipil-ipil) can be fed to cattle in unlimited quantities without adverse effects.', textFil: 'Totoo o Hindi: Ang Leucaena leucocephala (ipil-ipil) ay maaaring ipakain sa baka nang walang limitasyon at walang masamang epekto.', questionType: QuestionType.TRUE_FALSE, points: 1,
+      options: [
+        { id: `${postTest.id}-q3-a`, textEn: 'True', textFil: 'Totoo', isCorrect: false, order: 1 },
+        { id: `${postTest.id}-q3-b`, textEn: 'False', textFil: 'Hindi Totoo', isCorrect: true, order: 2 },
+      ],
+    },
+    { id: `${postTest.id}-q4`, order: 4, textEn: 'Describe the step-by-step process of making plastic bag silage suitable for a smallholder dairy farm in the Philippines.', textFil: 'Ilarawan ang hakbang-hakbang na proseso ng paggawa ng plastic bag silage na angkop para sa isang maliit na sakahan ng gatas sa Pilipinas.', questionType: QuestionType.ESSAY, points: 10,
+      rubricEn: 'Full marks for covering: harvesting forage at correct maturity (flowering stage), chopping to 2-5cm lengths, wilting to 65-70% moisture, packing tightly in thick plastic bags, removing air, sealing, and storing in cool dark area for 21+ days before feeding.',
+      rubricFil: 'Buong marka para sa pagtatalakay ng: pag-harvest ng damo sa tamang maturity (flowering stage), pagputol sa 2-5cm na haba, pagpapatuyo sa 65-70% moisture, mahigpit na paglalagay sa makapal na plastic bag, pag-alis ng hangin, pagse-seal, at pag-iimbak sa malamig at madilim na lugar ng 21+ araw bago ipakain.',
+    },
+    { id: `${postTest.id}-q5`, order: 5, textEn: 'What is the recommended forage cutting height to ensure regrowth for Napier grass?', textFil: 'Ano ang recommended na taas ng pagputol ng damo upang matiyak ang muling paglaki ng Napier grass?', questionType: QuestionType.MULTIPLE_CHOICE, points: 1,
+      options: [
+        { id: `${postTest.id}-q5-a`, textEn: 'Ground level', textFil: 'Antas ng lupa', isCorrect: false, order: 1 },
+        { id: `${postTest.id}-q5-b`, textEn: '5-10 cm above ground', textFil: '5-10 cm mula sa lupa', isCorrect: true, order: 2 },
+        { id: `${postTest.id}-q5-c`, textEn: '30-40 cm above ground', textFil: '30-40 cm mula sa lupa', isCorrect: false, order: 3 },
+        { id: `${postTest.id}-q5-d`, textEn: '50-60 cm above ground', textFil: '50-60 cm mula sa lupa', isCorrect: false, order: 4 },
+      ],
+    },
+  ])
+  console.log('    ✓ Post-test')
+
+  await upsertModuleItems(module.id, [
+    { id: 'seed-mi-c3m2-l1', type: ModuleItemType.LESSON, lessonId: lesson1.id, order: 1 },
+    { id: 'seed-mi-c3m2-l2', type: ModuleItemType.LESSON, lessonId: lesson2.id, order: 2 },
+    { id: 'seed-mi-c3m2-t1', type: ModuleItemType.TASK, taskId: task.id, order: 3 },
+    { id: 'seed-mi-c3m2-post', type: ModuleItemType.QUIZ, quizId: postTest.id, order: 4 },
+  ])
+  console.log('    ✓ Module flow wired')
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// COURSE 4 — Dairy Farm Business Management
+// ═══════════════════════════════════════════════════════════════════════════════
+
+async function seedCourse4(adminId: string) {
+  console.log('\n📚 Course 4: Dairy Farm Business Management')
+
+  const course = await prisma.course.upsert({
+    where: { slug: 'dairy-farm-business-management' },
+    update: {},
+    create: {
+      slug: 'dairy-farm-business-management',
+      titleEn: 'Dairy Farm Business Management',
+      titleFil: 'Pamamahala ng Negosyo ng Sakahan ng Gatas',
+      descriptionEn: '<p>Transform your dairy farm into a sustainable business. Learn record-keeping, financial planning, cost analysis, marketing strategies, and cooperative formation. This course prepares you to make data-driven decisions that improve profitability while maintaining animal welfare standards.</p>',
+      descriptionFil: '<p>Gawing sustainable na negosyo ang inyong sakahan ng gatas. Matuto ng record-keeping, financial planning, cost analysis, marketing strategies, at pagbuo ng kooperatiba. Ang kursong ito ay naghahanda sa inyo na gumawa ng mga desisyon na batay sa datos na nagpapabuti ng kita habang pinapanatili ang mga pamantayan sa animal welfare.</p>',
+      status: CourseStatus.PUBLISHED,
+      isInviteOnly: true,
+      order: 4,
+      createdById: adminId,
+    },
+  })
+  console.log(`  ✓ Course: ${course.titleEn}`)
+
+  const inviteCode = await prisma.inviteCode.upsert({
+    where: { code: 'DAIRY-BIZ-2025' },
+    update: {},
+    create: {
+      code: 'DAIRY-BIZ-2025',
+      createdById: adminId,
+      usageLimit: 100,
+      isActive: true,
+      note: 'Demo invite code for Business Management course',
+    },
+  })
+  await prisma.inviteCodeCourse.upsert({
+    where: { inviteCodeId_courseId: { inviteCodeId: inviteCode.id, courseId: course.id } },
+    update: {},
+    create: { inviteCodeId: inviteCode.id, courseId: course.id },
+  })
+  console.log(`  ✓ Invite code: DAIRY-BIZ-2025`)
+
+  await seedCourse4Module1(course.id, adminId)
+  await seedCourse4Module2(course.id, adminId)
+}
+
+async function seedCourse4Module1(courseId: string, adminId: string) {
+  console.log('  📦 Module 1: Farm Records & Financial Literacy')
+
+  const module = await prisma.module.upsert({
+    where: { id: 'seed-c4-m1' },
+    update: {},
+    create: {
+      id: 'seed-c4-m1',
+      courseId,
+      titleEn: 'Farm Records & Financial Literacy',
+      titleFil: 'Mga Rekord ng Sakahan at Financial Literacy',
+      descriptionEn: '<p>Learn why record-keeping is the foundation of a profitable dairy farm. Understand income statements, cash flow, and how to calculate your cost of production per liter of milk.</p>',
+      descriptionFil: '<p>Alamin kung bakit ang record-keeping ang pundasyon ng isang kumikitang sakahan ng gatas. Unawain ang income statements, cash flow, at kung paano kalkulahin ang gastos sa produksyon bawat litro ng gatas.</p>',
+      order: 1,
+      requiresPreTest: true,
+      requiresAllLessons: true,
+      requiresPostTest: true,
+      passingScoreToUnlock: 70,
+    },
+  })
+
+  const preTest = await upsertQuiz({
+    id: 'seed-c4-m1-pre', moduleId: module.id,
+    titleEn: 'Pre-Test: Farm Financial Basics',
+    titleFil: 'Pre-Test: Mga Batayan ng Financial sa Sakahan',
+    type: QuizType.PRE_TEST, passingScore: 60, maxAttempts: 2, order: 1,
+  })
+  await upsertQuestionsWithOptions([
+    { id: `${preTest.id}-q1`, order: 1, textEn: 'What is the most important reason for keeping farm records?', textFil: 'Ano ang pinakamahalagang dahilan ng pagtatago ng mga rekord ng sakahan?', questionType: QuestionType.MULTIPLE_CHOICE, points: 1,
+      options: [
+        { id: `${preTest.id}-q1-a`, textEn: 'Government requirement', textFil: 'Kinakailangan ng gobyerno', isCorrect: false, order: 1 },
+        { id: `${preTest.id}-q1-b`, textEn: 'To make informed management decisions', textFil: 'Para sa mga desisyong batay sa impormasyon', isCorrect: true, order: 2 },
+        { id: `${preTest.id}-q1-c`, textEn: 'To impress visitors', textFil: 'Para magpahanga sa mga bisita', isCorrect: false, order: 3 },
+        { id: `${preTest.id}-q1-d`, textEn: 'To keep employees busy', textFil: 'Para panatilihing abala ang mga empleyado', isCorrect: false, order: 4 },
+      ],
+    },
+    { id: `${preTest.id}-q2`, order: 2, textEn: 'True or False: A dairy farm that produces a lot of milk is always profitable.', textFil: 'Totoo o Hindi: Ang isang sakahan ng gatas na gumagawa ng maraming gatas ay laging kumikita.', questionType: QuestionType.TRUE_FALSE, points: 1,
+      options: [
+        { id: `${preTest.id}-q2-a`, textEn: 'True', textFil: 'Totoo', isCorrect: false, order: 1 },
+        { id: `${preTest.id}-q2-b`, textEn: 'False', textFil: 'Hindi Totoo', isCorrect: true, order: 2 },
+      ],
+    },
+    { id: `${preTest.id}-q3`, order: 3, textEn: 'What does "cost of production" mean in dairy farming?', textFil: 'Ano ang ibig sabihin ng "cost of production" sa pagpapalaki ng gatas?', questionType: QuestionType.MULTIPLE_CHOICE, points: 1,
+      options: [
+        { id: `${preTest.id}-q3-a`, textEn: 'The price you sell milk for', textFil: 'Ang presyo ng pagbenta ng gatas', isCorrect: false, order: 1 },
+        { id: `${preTest.id}-q3-b`, textEn: 'The total expenses to produce one liter of milk', textFil: 'Ang kabuuang gastos sa paggawa ng isang litro ng gatas', isCorrect: true, order: 2 },
+        { id: `${preTest.id}-q3-c`, textEn: 'The cost of buying a dairy cow', textFil: 'Ang gastos sa pagbili ng baka', isCorrect: false, order: 3 },
+        { id: `${preTest.id}-q3-d`, textEn: 'The government tax on dairy products', textFil: 'Ang buwis ng gobyerno sa mga produktong gatas', isCorrect: false, order: 4 },
+      ],
+    },
+    { id: `${preTest.id}-q4`, order: 4, textEn: 'Which of the following is a variable cost on a dairy farm?', textFil: 'Alin sa mga sumusunod ang isang variable cost sa sakahan ng gatas?', questionType: QuestionType.MULTIPLE_CHOICE, points: 1,
+      options: [
+        { id: `${preTest.id}-q4-a`, textEn: 'Land rent', textFil: 'Upa ng lupa', isCorrect: false, order: 1 },
+        { id: `${preTest.id}-q4-b`, textEn: 'Feed costs', textFil: 'Gastos sa pagkain', isCorrect: true, order: 2 },
+        { id: `${preTest.id}-q4-c`, textEn: 'Building depreciation', textFil: 'Depreciation ng gusali', isCorrect: false, order: 3 },
+        { id: `${preTest.id}-q4-d`, textEn: 'Insurance premium', textFil: 'Insurance premium', isCorrect: false, order: 4 },
+      ],
+    },
+    { id: `${preTest.id}-q5`, order: 5, textEn: 'What is the break-even point for a dairy farm?', textFil: 'Ano ang break-even point ng isang sakahan ng gatas?', questionType: QuestionType.MULTIPLE_CHOICE, points: 1,
+      options: [
+        { id: `${preTest.id}-q5-a`, textEn: 'When all cows are pregnant', textFil: 'Kapag lahat ng baka ay buntis', isCorrect: false, order: 1 },
+        { id: `${preTest.id}-q5-b`, textEn: 'When revenue equals total costs', textFil: 'Kapag ang kita ay katumbas ng kabuuang gastos', isCorrect: true, order: 2 },
+        { id: `${preTest.id}-q5-c`, textEn: 'When you have paid off your loan', textFil: 'Kapag nabayaran na ang utang', isCorrect: false, order: 3 },
+        { id: `${preTest.id}-q5-d`, textEn: 'When milk price goes up', textFil: 'Kapag tumaas ang presyo ng gatas', isCorrect: false, order: 4 },
+      ],
+    },
+  ])
+  console.log('    ✓ Pre-test')
+
+  const lesson1 = await upsertLesson({
+    id: 'seed-c4-m1-l1', moduleId: module.id,
+    titleEn: 'Why Farm Records Matter',
+    titleFil: 'Bakit Mahalaga ang Mga Rekord ng Sakahan',
+    bodyEn: '<h2>The Power of Data-Driven Farming</h2><p>Many smallholder dairy farmers in the Philippines rely on memory and intuition to make daily management decisions. While experience is valuable, keeping systematic records transforms your farm from a guessing game into a data-driven business. Records reveal which cows are profitable, where money is being wasted, and what changes will have the biggest impact on your bottom line.</p><p>There are four essential types of farm records: production records (daily milk yield per cow), financial records (income and expenses), breeding records (heat dates, insemination, calving), and health records (treatments, vaccinations, deworming). Together, these tell the complete story of your farm\'s performance.</p>',
+    bodyFil: '<h2>Ang Kapangyarihan ng Data-Driven Farming</h2><p>Maraming maliliit na dairy farmer sa Pilipinas ang umaasa sa memorya at intuwisyon upang gumawa ng mga pang-araw-araw na desisyon sa pamamahala. Bagaman mahalaga ang karanasan, ang sistematikong pagtatago ng mga rekord ay binabago ang inyong sakahan mula sa isang hula-hula patungo sa isang negosyo na batay sa datos. Ipinapakita ng mga rekord kung aling mga baka ang kumikita, kung saan nasasayang ang pera, at kung anong mga pagbabago ang magkakaroon ng pinakamalaking epekto sa inyong kita.</p><p>May apat na mahahalagang uri ng mga rekord ng sakahan: production records (pang-araw-araw na dami ng gatas bawat baka), financial records (kita at gastos), breeding records (petsa ng heat, insemination, panganganak), at health records (mga treatment, bakuna, deworm). Sama-sama, sinasabi nito ang kumpletong kwento ng performance ng inyong sakahan.</p>',
+    youtubeId: 'dQw4w9WgXcQ', durationSecs: 900, status: LessonStatus.PUBLISHED, order: 2,
+  })
+  console.log('    ✓ Lesson 1: Why Records Matter')
+
+  const lesson2 = await upsertLesson({
+    id: 'seed-c4-m1-l2', moduleId: module.id,
+    titleEn: 'Calculating Your Cost of Production',
+    titleFil: 'Pagkalkula ng Inyong Gastos sa Produksyon',
+    bodyEn: '<h2>Know Your Numbers</h2><p>The cost of production (COP) per liter is the single most important number for a dairy farmer to know. It tells you exactly how much it costs to produce each liter of milk, which determines whether you are making or losing money at current market prices.</p><p>To calculate COP: add up all farm expenses for the month (feed, labor, veterinary, utilities, supplies, loan payments, depreciation) and divide by total liters of milk produced. For example, if monthly expenses are ₱150,000 and you produced 6,000 liters, your COP is ₱25 per liter. If you sell at ₱35 per liter, your profit margin is ₱10 per liter.</p>',
+    bodyFil: '<h2>Alamin ang Inyong mga Numero</h2><p>Ang gastos sa produksyon (COP) bawat litro ang pinakamahalaga na numero na dapat malaman ng isang dairy farmer. Sinasabi nito sa inyo kung magkano exactly ang gastos sa paggawa ng bawat litro ng gatas, na nagtatakda kung kumikita o nalulugi kayo sa kasalukuyang presyo ng merkado.</p><p>Para kalkulahin ang COP: idagdag ang lahat ng gastos ng sakahan para sa buwan (pagkain, paggawa, beterinaryo, utilities, supplies, bayad sa utang, depreciation) at hatiin sa kabuuang litro ng gatas na ginawa. Halimbawa, kung ang buwanang gastos ay ₱150,000 at gumawa kayo ng 6,000 litro, ang inyong COP ay ₱25 bawat litro. Kung ibinenta ninyo sa ₱35 bawat litro, ang inyong profit margin ay ₱10 bawat litro.</p>',
+    durationSecs: 840, status: LessonStatus.PUBLISHED, order: 3,
+  })
+  console.log('    ✓ Lesson 2: Cost of Production')
+
+  const task = await upsertTask({
+    id: 'seed-c4-m1-t1', moduleId: module.id,
+    titleEn: 'Output: Monthly Farm Financial Statement',
+    titleFil: 'Output: Buwanang Financial Statement ng Sakahan',
+    descriptionEn: '<p>Using the template provided in Lesson 2, create a complete monthly financial statement for a real or hypothetical dairy farm with 10 cows. Include: (1) all income sources (milk sales, cull cow sales, manure sales), (2) all expenses categorized as fixed or variable, (3) cost of production per liter calculation, (4) net profit/loss analysis, and (5) two recommendations for improving profitability.</p>',
+    descriptionFil: '<p>Gamit ang template na ibinigay sa Aralin 2, gumawa ng kumpletong buwanang financial statement para sa isang tunay o hypothetical na sakahan ng gatas na may 10 baka. Isama ang: (1) lahat ng pinagmumulan ng kita (benta ng gatas, benta ng cull cow, benta ng dumi), (2) lahat ng gastos na inuri bilang fixed o variable, (3) kalkulasyon ng gastos sa produksyon bawat litro, (4) pagsusuri ng net profit/loss, at (5) dalawang rekomendasyon para sa pagpapabuti ng kita.</p>',
+    taskType: TaskType.OUTPUT_SUBMISSION, maxScore: 30, isRequired: true, order: 4,
+  })
+  console.log('    ✓ Task: Monthly Financial Statement')
+
+  const postTest = await upsertQuiz({
+    id: 'seed-c4-m1-post', moduleId: module.id,
+    titleEn: 'Post-Test: Farm Records & Financial Literacy',
+    titleFil: 'Post-Test: Mga Rekord ng Sakahan at Financial Literacy',
+    type: QuizType.POST_TEST, passingScore: 70, maxAttempts: 3, order: 5,
+  })
+  await upsertQuestionsWithOptions([
+    { id: `${postTest.id}-q1`, order: 1, textEn: 'If a farm spends ₱200,000 monthly and produces 8,000 liters of milk, what is the cost of production per liter?', textFil: 'Kung ang isang sakahan ay gumagastos ng ₱200,000 bawat buwan at gumagawa ng 8,000 litro ng gatas, ano ang gastos sa produksyon bawat litro?', questionType: QuestionType.MULTIPLE_CHOICE, points: 1,
+      options: [
+        { id: `${postTest.id}-q1-a`, textEn: '₱20', textFil: '₱20', isCorrect: false, order: 1 },
+        { id: `${postTest.id}-q1-b`, textEn: '₱25', textFil: '₱25', isCorrect: true, order: 2 },
+        { id: `${postTest.id}-q1-c`, textEn: '₱30', textFil: '₱30', isCorrect: false, order: 3 },
+        { id: `${postTest.id}-q1-d`, textEn: '₱35', textFil: '₱35', isCorrect: false, order: 4 },
+      ],
+    },
+    { id: `${postTest.id}-q2`, order: 2, textEn: 'Which of the following is a fixed cost?', textFil: 'Alin sa mga sumusunod ang isang fixed cost?', questionType: QuestionType.MULTIPLE_CHOICE, points: 1,
+      options: [
+        { id: `${postTest.id}-q2-a`, textEn: 'Feed', textFil: 'Pagkain', isCorrect: false, order: 1 },
+        { id: `${postTest.id}-q2-b`, textEn: 'Veterinary medicine', textFil: 'Gamot pang-beterinaryo', isCorrect: false, order: 2 },
+        { id: `${postTest.id}-q2-c`, textEn: 'Land rent', textFil: 'Upa ng lupa', isCorrect: true, order: 3 },
+        { id: `${postTest.id}-q2-d`, textEn: 'Electricity for milking machine', textFil: 'Kuryente para sa milking machine', isCorrect: false, order: 4 },
+      ],
+    },
+    { id: `${postTest.id}-q3`, order: 3, textEn: 'True or False: Feed typically accounts for 60-70% of total dairy farm operating costs.', textFil: 'Totoo o Hindi: Ang pagkain ay karaniwang bumubuo ng 60-70% ng kabuuang operating costs ng sakahan ng gatas.', questionType: QuestionType.TRUE_FALSE, points: 1,
+      options: [
+        { id: `${postTest.id}-q3-a`, textEn: 'True', textFil: 'Totoo', isCorrect: true, order: 1 },
+        { id: `${postTest.id}-q3-b`, textEn: 'False', textFil: 'Hindi Totoo', isCorrect: false, order: 2 },
+      ],
+    },
+    { id: `${postTest.id}-q4`, order: 4, textEn: 'Explain how a farmer should use production records to identify and cull unprofitable cows from the herd.', textFil: 'Ipaliwanag kung paano dapat gamitin ng isang magsasaka ang mga production record upang makilala at alisin ang mga bakas na hindi kumikita mula sa kawan.', questionType: QuestionType.ESSAY, points: 10,
+      rubricEn: 'Full marks for discussing: tracking daily milk yield per cow, calculating individual cow COP, comparing to herd average, considering lactation stage and age, health/breeding history, and making culling decisions based on economic data rather than sentiment.',
+      rubricFil: 'Buong marka para sa pagtatalakay ng: pagsubaybay sa pang-araw-araw na produksyon ng gatas bawat baka, pagkalkula ng individual cow COP, pagkumpara sa average ng kawan, pagsasaalang-alang ng lactation stage at edad, kasaysayan ng kalusugan/breeding, at paggawa ng culling decisions batay sa economic data sa halip na sentimyento.',
+    },
+    { id: `${postTest.id}-q5`, order: 5, textEn: 'What is depreciation and why is it important to include in farm financial records?', textFil: 'Ano ang depreciation at bakit mahalaga itong isama sa financial records ng sakahan?', questionType: QuestionType.MULTIPLE_CHOICE, points: 1,
+      options: [
+        { id: `${postTest.id}-q5-a`, textEn: 'The increase in value of farm assets over time', textFil: 'Ang pagtaas ng halaga ng mga ari-arian ng sakahan sa paglipas ng panahon', isCorrect: false, order: 1 },
+        { id: `${postTest.id}-q5-b`, textEn: 'The gradual loss of value of farm assets due to wear and age', textFil: 'Ang unti-unting pagkawala ng halaga ng mga ari-arian ng sakahan dahil sa pagkasira at edad', isCorrect: true, order: 2 },
+        { id: `${postTest.id}-q5-c`, textEn: 'The interest paid on farm loans', textFil: 'Ang interes na binayaran sa mga utang ng sakahan', isCorrect: false, order: 3 },
+        { id: `${postTest.id}-q5-d`, textEn: 'The tax deduction for buying new equipment', textFil: 'Ang tax deduction para sa pagbili ng bagong kagamitan', isCorrect: false, order: 4 },
+      ],
+    },
+  ])
+  console.log('    ✓ Post-test')
+
+  await upsertModuleItems(module.id, [
+    { id: 'seed-mi-c4m1-pre', type: ModuleItemType.QUIZ, quizId: preTest.id, order: 1 },
+    { id: 'seed-mi-c4m1-l1', type: ModuleItemType.LESSON, lessonId: lesson1.id, order: 2 },
+    { id: 'seed-mi-c4m1-l2', type: ModuleItemType.LESSON, lessonId: lesson2.id, order: 3 },
+    { id: 'seed-mi-c4m1-t1', type: ModuleItemType.TASK, taskId: task.id, order: 4 },
+    { id: 'seed-mi-c4m1-post', type: ModuleItemType.QUIZ, quizId: postTest.id, order: 5 },
+  ])
+  console.log('    ✓ Module flow wired')
+}
+
+async function seedCourse4Module2(courseId: string, adminId: string) {
+  console.log('  📦 Module 2: Marketing & Cooperative Formation')
+
+  const module = await prisma.module.upsert({
+    where: { id: 'seed-c4-m2' },
+    update: {},
+    create: {
+      id: 'seed-c4-m2',
+      courseId,
+      titleEn: 'Marketing & Cooperative Formation',
+      titleFil: 'Marketing at Pagbuo ng Kooperatiba',
+      descriptionEn: '<p>Discover market channels for fresh milk and dairy products in the Philippines. Learn the benefits and process of forming a dairy cooperative to strengthen bargaining power and share resources.</p>',
+      descriptionFil: '<p>Tuklasin ang mga market channel para sa sariwang gatas at mga produktong gatas sa Pilipinas. Alamin ang mga benepisyo at proseso ng pagbuo ng isang dairy cooperative upang palakasin ang bargaining power at magbahagi ng mga resource.</p>',
+      order: 2,
+      requiresPreTest: false,
+      requiresAllLessons: true,
+      requiresPostTest: true,
+      passingScoreToUnlock: 70,
+    },
+  })
+
+  const lesson1 = await upsertLesson({
+    id: 'seed-c4-m2-l1', moduleId: module.id,
+    titleEn: 'Market Channels for Philippine Dairy',
+    titleFil: 'Mga Market Channel para sa Philippine Dairy',
+    bodyEn: '<h2>Where to Sell Your Milk</h2><p>Filipino dairy farmers have several options for selling their milk. Direct-to-consumer sales at farm gate prices typically yield the highest margin, but require regular customers and cold chain management. Selling to milk collection centers operated by the National Dairy Authority (NDA) or cooperatives provides a guaranteed buyer but at institutional prices.</p><p>Value-added products offer the best profit potential: pasteurized milk, flavored milk, yogurt, cheese (kesong puti), and milk candy (pastillas) can command premium prices, especially when marketed with a local brand story that resonates with health-conscious Filipino consumers.</p>',
+    bodyFil: '<h2>Saan Ibenta ang Inyong Gatas</h2><p>Ang mga Filipino dairy farmer ay may ilang pagpipilian sa pagbenta ng kanilang gatas. Ang direktang pagbenta sa consumer sa farm gate prices ay karaniwang nagbibigay ng pinakamataas na margin, ngunit nangangailangan ng regular na customer at cold chain management. Ang pagbenta sa milk collection centers na pinapatakbo ng National Dairy Authority (NDA) o mga kooperatiba ay nagbibigay ng garantisadong buyer ngunit sa institutional na presyo.</p><p>Ang mga value-added products ang nag-aalok ng pinakamagandang profit potential: pasteurized milk, flavored milk, yogurt, cheese (kesong puti), at milk candy (pastillas) — ang mga ito ay maaaring magkaroon ng premium na presyo, lalo na kapag naka-market na may lokal na brand story na nakakaakit sa health-conscious na Filipino consumers.</p>',
+    youtubeId: 'dQw4w9WgXcQ', durationSecs: 780, status: LessonStatus.PUBLISHED, order: 1,
+  })
+  console.log('    ✓ Lesson 1: Market Channels')
+
+  const lesson2 = await upsertLesson({
+    id: 'seed-c4-m2-l2', moduleId: module.id,
+    titleEn: 'Forming a Dairy Cooperative',
+    titleFil: 'Pagbuo ng Dairy Cooperative',
+    bodyEn: '<h2>Strength in Numbers</h2><p>A dairy cooperative is a member-owned business organization where individual farmers pool resources to achieve what none could alone: bulk purchasing of feeds at lower prices, shared access to expensive equipment (milking machines, cooling tanks), collective bargaining with buyers, and joint marketing under a shared brand.</p><p>In the Philippines, forming a cooperative requires at least 15 members and registration with the Cooperative Development Authority (CDA). The process involves: organizing a general assembly, drafting articles of cooperation and bylaws, conducting a pre-registration seminar (PMES), and filing the registration documents. Once registered, the cooperative can access government support programs, financing from cooperative banks, and technical assistance from the NDA.</p>',
+    bodyFil: '<h2>Lakas sa Bilang</h2><p>Ang isang dairy cooperative ay isang member-owned na business organization kung saan ang mga indibidwal na magsasaka ay nagsasama-sama ng mga resource upang makamit ang hindi kayang gawin ng isa: bulk purchasing ng feeds sa mas mababang presyo, shared access sa mahal na kagamitan (milking machines, cooling tanks), collective bargaining sa mga buyer, at joint marketing sa ilalim ng isang shared brand.</p><p>Sa Pilipinas, ang pagbuo ng kooperatiba ay nangangailangan ng hindi bababa sa 15 miyembro at rehistrasyon sa Cooperative Development Authority (CDA). Ang proseso ay kinabibilangan ng: pag-organisa ng general assembly, paggawa ng articles of cooperation at bylaws, pagdadaos ng pre-registration seminar (PMES), at pag-file ng mga dokumento ng rehistrasyon. Kapag narehistro na, ang kooperatiba ay maaaring mag-access ng mga programa ng suporta ng gobyerno, financing mula sa cooperative banks, at teknikal na tulong mula sa NDA.</p>',
+    durationSecs: 900, status: LessonStatus.PUBLISHED, order: 2,
+  })
+  console.log('    ✓ Lesson 2: Cooperative Formation')
+
+  const task = await upsertTask({
+    id: 'seed-c4-m2-t1', moduleId: module.id,
+    titleEn: 'Output: Dairy Business Plan',
+    titleFil: 'Output: Business Plan ng Dairy',
+    descriptionEn: '<p>Create a simple business plan for a small-scale dairy operation or dairy cooperative in your municipality. Include: (1) executive summary, (2) description of products and target market, (3) startup costs and monthly operating budget, (4) projected monthly revenue, (5) break-even analysis, (6) a marketing strategy that includes at least one value-added product. Maximum 3 pages.</p>',
+    descriptionFil: '<p>Gumawa ng simpleng business plan para sa isang maliit na operasyon ng gatas o dairy cooperative sa inyong munisipalidad. Isama ang: (1) executive summary, (2) deskripsyon ng mga produkto at target market, (3) startup costs at buwanang operating budget, (4) projected monthly revenue, (5) break-even analysis, (6) isang marketing strategy na may kasama na hindi bababa sa isang value-added product. Maximum 3 pahina.</p>',
+    taskType: TaskType.OUTPUT_SUBMISSION, maxScore: 40, isRequired: true, order: 3,
+  })
+  console.log('    ✓ Task: Dairy Business Plan')
+
+  const postTest = await upsertQuiz({
+    id: 'seed-c4-m2-post', moduleId: module.id,
+    titleEn: 'Post-Test: Marketing & Cooperatives',
+    titleFil: 'Post-Test: Marketing at Kooperatiba',
+    type: QuizType.POST_TEST, passingScore: 70, maxAttempts: 3, order: 4,
+  })
+  await upsertQuestionsWithOptions([
+    { id: `${postTest.id}-q1`, order: 1, textEn: 'What is the minimum number of members required to form a cooperative in the Philippines?', textFil: 'Ano ang minimum na bilang ng miyembro na kailangan upang bumuo ng kooperatiba sa Pilipinas?', questionType: QuestionType.MULTIPLE_CHOICE, points: 1,
+      options: [
+        { id: `${postTest.id}-q1-a`, textEn: '5', textFil: '5', isCorrect: false, order: 1 },
+        { id: `${postTest.id}-q1-b`, textEn: '10', textFil: '10', isCorrect: false, order: 2 },
+        { id: `${postTest.id}-q1-c`, textEn: '15', textFil: '15', isCorrect: true, order: 3 },
+        { id: `${postTest.id}-q1-d`, textEn: '25', textFil: '25', isCorrect: false, order: 4 },
+      ],
+    },
+    { id: `${postTest.id}-q2`, order: 2, textEn: 'Which government agency handles cooperative registration in the Philippines?', textFil: 'Aling ahensya ng gobyerno ang namamahala sa rehistrasyon ng kooperatiba sa Pilipinas?', questionType: QuestionType.MULTIPLE_CHOICE, points: 1,
+      options: [
+        { id: `${postTest.id}-q2-a`, textEn: 'DTI', textFil: 'DTI', isCorrect: false, order: 1 },
+        { id: `${postTest.id}-q2-b`, textEn: 'SEC', textFil: 'SEC', isCorrect: false, order: 2 },
+        { id: `${postTest.id}-q2-c`, textEn: 'CDA', textFil: 'CDA', isCorrect: true, order: 3 },
+        { id: `${postTest.id}-q2-d`, textEn: 'NDA', textFil: 'NDA', isCorrect: false, order: 4 },
+      ],
+    },
+    { id: `${postTest.id}-q3`, order: 3, textEn: 'True or False: Kesong puti (white cheese) is an example of a value-added dairy product that commands premium prices.', textFil: 'Totoo o Hindi: Ang kesong puti ay isang halimbawa ng value-added dairy product na may premium na presyo.', questionType: QuestionType.TRUE_FALSE, points: 1,
+      options: [
+        { id: `${postTest.id}-q3-a`, textEn: 'True', textFil: 'Totoo', isCorrect: true, order: 1 },
+        { id: `${postTest.id}-q3-b`, textEn: 'False', textFil: 'Hindi Totoo', isCorrect: false, order: 2 },
+      ],
+    },
+    { id: `${postTest.id}-q4`, order: 4, textEn: 'Describe three advantages of joining a dairy cooperative compared to operating as an individual farmer.', textFil: 'Ilarawan ang tatlong benepisyo ng pagsali sa dairy cooperative kumpara sa pagtatrabaho bilang isang indibidwal na magsasaka.', questionType: QuestionType.ESSAY, points: 10,
+      rubricEn: 'Full marks for discussing at least three from: bulk feed purchasing at lower prices, shared equipment costs, collective marketing and bargaining power, access to cooperative financing, shared technical training, quality control standardization, risk-sharing during market downturns.',
+      rubricFil: 'Buong marka para sa pagtatalakay ng hindi bababa sa tatlo mula sa: bulk feed purchasing sa mas mababang presyo, shared equipment costs, collective marketing at bargaining power, access sa cooperative financing, shared technical training, quality control standardization, risk-sharing sa panahon ng market downturns.',
+    },
+    { id: `${postTest.id}-q5`, order: 5, textEn: 'Which marketing channel typically gives the highest profit margin for a dairy farmer?', textFil: 'Aling marketing channel ang karaniwang nagbibigay ng pinakamataas na profit margin sa dairy farmer?', questionType: QuestionType.MULTIPLE_CHOICE, points: 1,
+      options: [
+        { id: `${postTest.id}-q5-a`, textEn: 'Selling to a milk collection center', textFil: 'Pagbenta sa milk collection center', isCorrect: false, order: 1 },
+        { id: `${postTest.id}-q5-b`, textEn: 'Direct-to-consumer sales', textFil: 'Direktang pagbenta sa consumer', isCorrect: false, order: 2 },
+        { id: `${postTest.id}-q5-c`, textEn: 'Value-added products (yogurt, cheese, etc.)', textFil: 'Mga value-added products (yogurt, cheese, atbp.)', isCorrect: true, order: 3 },
+        { id: `${postTest.id}-q5-d`, textEn: 'Bulk selling to supermarkets', textFil: 'Bulk na pagbenta sa supermarket', isCorrect: false, order: 4 },
+      ],
+    },
+  ])
+  console.log('    ✓ Post-test')
+
+  await upsertModuleItems(module.id, [
+    { id: 'seed-mi-c4m2-l1', type: ModuleItemType.LESSON, lessonId: lesson1.id, order: 1 },
+    { id: 'seed-mi-c4m2-l2', type: ModuleItemType.LESSON, lessonId: lesson2.id, order: 2 },
+    { id: 'seed-mi-c4m2-t1', type: ModuleItemType.TASK, taskId: task.id, order: 3 },
+    { id: 'seed-mi-c4m2-post', type: ModuleItemType.QUIZ, quizId: postTest.id, order: 4 },
+  ])
+  console.log('    ✓ Module flow wired')
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
